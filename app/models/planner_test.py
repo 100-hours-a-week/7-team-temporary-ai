@@ -443,6 +443,21 @@ class PlannerGenerateRequestTest(BaseModel):
 # Response Models (TEST)
 # ============================================================
 
+class ChildScheduleTest(BaseModel):
+    """
+    [응답] 분할된 하위 작업 (긴 작업을 여러 시간대로 나눈 경우).
+
+    예: "통계학 과제 (긴급)"이 2시간 이상이면
+        - "통계학 과제 (긴급) - 1" (09:30~10:00)
+        - "통계학 과제 (긴급) - 2" (11:00~12:00)
+    """
+    model_config = ConfigDict(populate_by_name=True)
+
+    title: str = Field(..., max_length=60, description="분할된 작업 제목", examples=["통계학 과제 (긴급) - 1"])
+    start_at: TimeHHMM = Field(..., alias="startAt", description="시작 시간(HH:MM)")
+    end_at: TimeHHMM = Field(..., alias="endAt", description="종료 시간(HH:MM)")
+
+
 class PlannerScheduleResultTest(BaseModel):
     """
     [응답] 작업별 배치 결과 (TEST).
@@ -455,6 +470,7 @@ class PlannerScheduleResultTest(BaseModel):
     - assignmentStatus:
         * type=FIXED -> ASSIGNED
         * type=FLEX  -> EXCLUDED
+    - children: 긴 작업(HOUR_1_TO_2 이상)이 분할 배치된 경우 하위 작업 목록
     """
     model_config = ConfigDict(populate_by_name=True)
 
@@ -468,6 +484,11 @@ class PlannerScheduleResultTest(BaseModel):
 
     start_at: Optional[TimeHHMM] = Field(None, alias="startAt", description="시작 시간(HH:MM)")
     end_at: Optional[TimeHHMM] = Field(None, alias="endAt", description="종료 시간(HH:MM)")
+
+    children: Optional[List["ChildScheduleTest"]] = Field(
+        None,
+        description="분할 배치된 하위 작업 목록 (긴 작업이 여러 시간대로 나뉜 경우)"
+    )
 
 
 class PlannerGenerateResponseTest(BaseModel):

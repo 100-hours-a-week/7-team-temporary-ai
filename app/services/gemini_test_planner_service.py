@@ -16,6 +16,7 @@ from app.models.planner_test import (
     PlannerGenerateResponseTest,
     PlannerScheduleResultTest,
     PlannerScheduleInputTest,
+    ChildScheduleTest,
     TaskType,
     AssignedBy,
     AssignmentStatus,
@@ -107,10 +108,11 @@ def _create_gemini_prompt(request: PlannerGenerateRequestTest) -> str:
 9. 몰입도가 낮은 작업(focusLevel 1-3)이나 긴급하지 않은 작업은 EXCLUDED로 처리하는 것을 우선적으로 고려하세요.
 
 **응답 형식 (JSON):**
-당신은 각 작업에 대해 **아래 3가지를** 결정하면 됩니다:
+당신은 각 작업에 대해 **아래 사항을** 결정하면 됩니다:
 1. `taskId`: 작업 ID (위에서 제공한 Task ID 그대로 사용)
 2. `assignmentStatus`: "ASSIGNED" (배치함) 또는 "EXCLUDED" (제외함)
-3. `startAt`, `endAt`: ASSIGNED인 경우 시간 배치, EXCLUDED인 경우 null
+3. `startAt`, `endAt`: 시간 배치 (분할 배치되는 경우 null)
+4. `children`: **긴 작업(HOUR_1_TO_2 이상, 90분 이상)을 여러 시간대에 분할 배치하는 경우 필수**
 
 ```json
 {{
@@ -119,17 +121,29 @@ def _create_gemini_prompt(request: PlannerGenerateRequestTest) -> str:
       "taskId": 작업ID(숫자),
       "assignmentStatus": "ASSIGNED" 또는 "EXCLUDED",
       "startAt": "HH:MM" 또는 null,
-      "endAt": "HH:MM" 또는 null
+      "endAt": "HH:MM" 또는 null,
+      "children": null 또는 [
+        {{"title": "작업제목 - 1", "startAt": "HH:MM", "endAt": "HH:MM"}},
+        {{"title": "작업제목 - 2", "startAt": "HH:MM", "endAt": "HH:MM"}}
+      ]
     }}
   ]
 }}
 ```
 
 **중요:**
-- **FIXED 작업**: 모두 assignmentStatus="ASSIGNED", 원래 시간(startAt/endAt) 그대로 유지
-- **FLEX 작업**:
-  - assignmentStatus="ASSIGNED"인 경우 → startAt/endAt을 배치한 시간으로 설정
-  - assignmentStatus="EXCLUDED"인 경우 → startAt/endAt을 null로 설정
+- **FIXED 작업**: 모두 assignmentStatus="ASSIGNED", 원래 시간(startAt/endAt) 그대로 유지, children=null
+- **FLEX 작업 (분할하지 않는 경우)**:
+  - assignmentStatus="ASSIGNED"인 경우 → startAt/endAt을 배치한 시간으로 설정, children=null
+  - assignmentStatus="EXCLUDED"인 경우 → startAt/endAt을 null로 설정, children=null
+- **긴 작업 분할 배치 (HOUR_1_TO_2, HOUR_2_TO_4, HOUR_OVER_4인 FLEX 작업)**:
+  - 긴 작업은 연속된 긴 시간 슬롯이 없을 경우, **여러 시간대로 분할하여 배치**하세요.
+  - **분할 배치 시 부모 작업의 startAt/endAt은 반드시 null로 설정** (실제 시간은 children에만!)
+  - 분할 시 `children` 배열에 각 분할된 작업을 포함하세요.
+  - 예: "통계학 과제 (긴급)" (예상 2~4시간)을 분할 배치하면:
+    - startAt: null, endAt: null (부모는 시간 없음!)
+    - children: [{{"title": "통계학 과제 (긴급) - 1", "startAt": "09:30", "endAt": "10:00"}}, {{"title": "통계학 과제 (긴급) - 2", "startAt": "13:00", "endAt": "15:30"}}]
+  - 분할하지 않는 경우 children=null
 - **FLEX 작업 중 40-60% 정도는 EXCLUDED로 설정** (현실적인 플래너 작성)
 - 우선순위: 긴급도 > 몰입도 > 예상 소요 시간을 고려하여 중요한 작업만 ASSIGNED로 배치
 
@@ -209,6 +223,19 @@ def _parse_gemini_response(
             start_at = schedule.get("startAt")
             end_at = schedule.get("endAt")
 
+            # children 처리 (분할 배치된 작업)
+            children_data = schedule.get("children")
+            children = None
+            if children_data and isinstance(children_data, list) and len(children_data) > 0:
+                children = []
+                for child in children_data:
+                    child_schedule = ChildScheduleTest(
+                        title=child.get("title", f"{title} - {len(children) + 1}"),
+                        startAt=child.get("startAt"),
+                        endAt=child.get("endAt"),
+                    )
+                    children.append(child_schedule)
+
             result = PlannerScheduleResultTest(
                 taskId=task_id,
                 dayPlanId=day_plan_id,
@@ -218,6 +245,7 @@ def _parse_gemini_response(
                 assignmentStatus=assignment_status,
                 startAt=start_at,
                 endAt=end_at,
+                children=children,
             )
             results.append(result)
 
