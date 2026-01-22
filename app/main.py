@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.api.v1 import planners_test
+from app.api.v1 import gemini_test_planners
 
 # 로깅 설정
 logging.basicConfig(
@@ -36,7 +36,7 @@ app.add_middleware(
 )
 
 # 라우터 등록
-app.include_router(planners_test.router)
+app.include_router(gemini_test_planners.router)
 
 # Health Check 엔드포인트
 @app.get("/health", tags=["Health"])

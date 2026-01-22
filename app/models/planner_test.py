@@ -228,10 +228,10 @@ class PlannerGenerateRequestTest(BaseModel):
                         "taskId": 1,
                         "parentScheduleId": None,
                         "dayPlanId": 100,
-                        "title": "아침 운동",
+                        "title": "아침 스트레칭",
                         "type": "FIXED",
-                        "startAt": "07:00",
-                        "endAt": "08:00",
+                        "startAt": "09:00",
+                        "endAt": "09:30",
                         "estimatedTimeRange": None,
                         "focusLevel": None,
                         "isUrgent": None
@@ -252,18 +252,6 @@ class PlannerGenerateRequestTest(BaseModel):
                         "taskId": 3,
                         "parentScheduleId": None,
                         "dayPlanId": 100,
-                        "title": "통계학 과제 (긴급)",
-                        "type": "FLEX",
-                        "startAt": None,
-                        "endAt": None,
-                        "estimatedTimeRange": "HOUR_2_TO_4",
-                        "focusLevel": 9,
-                        "isUrgent": True
-                    },
-                    {
-                        "taskId": 4,
-                        "parentScheduleId": None,
-                        "dayPlanId": 100,
                         "title": "점심 약속",
                         "type": "FIXED",
                         "startAt": "12:00",
@@ -273,31 +261,7 @@ class PlannerGenerateRequestTest(BaseModel):
                         "isUrgent": None
                     },
                     {
-                        "taskId": 5,
-                        "parentScheduleId": None,
-                        "dayPlanId": 100,
-                        "title": "코딩 연습 (짧은 시간)",
-                        "type": "FLEX",
-                        "startAt": None,
-                        "endAt": None,
-                        "estimatedTimeRange": "MINUTE_30_TO_60",
-                        "focusLevel": 7,
-                        "isUrgent": False
-                    },
-                    {
-                        "taskId": 6,
-                        "parentScheduleId": None,
-                        "dayPlanId": 100,
-                        "title": "영어 공부 (중간 시간)",
-                        "type": "FLEX",
-                        "startAt": None,
-                        "endAt": None,
-                        "estimatedTimeRange": "HOUR_1_TO_2",
-                        "focusLevel": 8,
-                        "isUrgent": True
-                    },
-                    {
-                        "taskId": 7,
+                        "taskId": 4,
                         "parentScheduleId": None,
                         "dayPlanId": 100,
                         "title": "저녁 약속",
@@ -309,15 +273,135 @@ class PlannerGenerateRequestTest(BaseModel):
                         "isUrgent": None
                     },
                     {
-                        "taskId": 8,
+                        "taskId": 5,
                         "parentScheduleId": None,
                         "dayPlanId": 100,
-                        "title": "독서 (긴 시간)",
+                        "title": "통계학 과제 (긴급)",
                         "type": "FLEX",
                         "startAt": None,
                         "endAt": None,
-                        "estimatedTimeRange": "HOUR_OVER_4",
+                        "estimatedTimeRange": "HOUR_2_TO_4",
+                        "focusLevel": 9,
+                        "isUrgent": True
+                    },
+                    {
+                        "taskId": 6,
+                        "parentScheduleId": None,
+                        "dayPlanId": 100,
+                        "title": "영어 공부",
+                        "type": "FLEX",
+                        "startAt": None,
+                        "endAt": None,
+                        "estimatedTimeRange": "HOUR_1_TO_2",
+                        "focusLevel": 8,
+                        "isUrgent": True
+                    },
+                    {
+                        "taskId": 7,
+                        "parentScheduleId": None,
+                        "dayPlanId": 100,
+                        "title": "프로젝트 기획서 작성",
+                        "type": "FLEX",
+                        "startAt": None,
+                        "endAt": None,
+                        "estimatedTimeRange": "HOUR_1_TO_2",
+                        "focusLevel": 7,
+                        "isUrgent": False
+                    },
+                    {
+                        "taskId": 8,
+                        "parentScheduleId": None,
+                        "dayPlanId": 100,
+                        "title": "코딩 연습",
+                        "type": "FLEX",
+                        "startAt": None,
+                        "endAt": None,
+                        "estimatedTimeRange": "MINUTE_30_TO_60",
+                        "focusLevel": 6,
+                        "isUrgent": False
+                    },
+                    {
+                        "taskId": 9,
+                        "parentScheduleId": None,
+                        "dayPlanId": 100,
+                        "title": "책 읽기",
+                        "type": "FLEX",
+                        "startAt": None,
+                        "endAt": None,
+                        "estimatedTimeRange": "MINUTE_30_TO_60",
+                        "focusLevel": 4,
+                        "isUrgent": False
+                    },
+                    {
+                        "taskId": 10,
+                        "parentScheduleId": None,
+                        "dayPlanId": 100,
+                        "title": "블로그 글쓰기",
+                        "type": "FLEX",
+                        "startAt": None,
+                        "endAt": None,
+                        "estimatedTimeRange": "HOUR_1_TO_2",
                         "focusLevel": 5,
+                        "isUrgent": False
+                    },
+                    {
+                        "taskId": 11,
+                        "parentScheduleId": None,
+                        "dayPlanId": 100,
+                        "title": "유튜브 강의 시청",
+                        "type": "FLEX",
+                        "startAt": None,
+                        "endAt": None,
+                        "estimatedTimeRange": "MINUTE_30_TO_60",
+                        "focusLevel": 3,
+                        "isUrgent": False
+                    },
+                    {
+                        "taskId": 12,
+                        "parentScheduleId": None,
+                        "dayPlanId": 100,
+                        "title": "이메일 정리",
+                        "type": "FLEX",
+                        "startAt": None,
+                        "endAt": None,
+                        "estimatedTimeRange": "MINUTE_UNDER_30",
+                        "focusLevel": 2,
+                        "isUrgent": False
+                    },
+                    {
+                        "taskId": 13,
+                        "parentScheduleId": None,
+                        "dayPlanId": 100,
+                        "title": "SNS 확인",
+                        "type": "FLEX",
+                        "startAt": None,
+                        "endAt": None,
+                        "estimatedTimeRange": "MINUTE_UNDER_30",
+                        "focusLevel": 1,
+                        "isUrgent": False
+                    },
+                    {
+                        "taskId": 14,
+                        "parentScheduleId": None,
+                        "dayPlanId": 100,
+                        "title": "방 청소",
+                        "type": "FLEX",
+                        "startAt": None,
+                        "endAt": None,
+                        "estimatedTimeRange": "MINUTE_30_TO_60",
+                        "focusLevel": 3,
+                        "isUrgent": False
+                    },
+                    {
+                        "taskId": 15,
+                        "parentScheduleId": None,
+                        "dayPlanId": 100,
+                        "title": "친구와 전화",
+                        "type": "FLEX",
+                        "startAt": None,
+                        "endAt": None,
+                        "estimatedTimeRange": "MINUTE_30_TO_60",
+                        "focusLevel": 2,
                         "isUrgent": False
                     }
                 ]
@@ -329,10 +413,50 @@ class PlannerGenerateRequestTest(BaseModel):
     start_arrange: TimeHHMM = Field(..., alias="startArrange", description="배치하기 버튼 클릭 시각(HH:MM)")
     schedules: List[PlannerScheduleInputTest] = Field(..., description="배치 대상 작업 목록(Schedule 기반)")
 
+    @model_validator(mode="after")
+    def _validate_fixed_time_range(self) -> "PlannerGenerateRequestTest":
+        """FIXED 작업의 시간이 startArrange~dayEndTime 범위 내인지 검증"""
+        start_arrange_min = _hhmm_to_minutes(self.start_arrange)
+        day_end_min = _hhmm_to_minutes(self.user.day_end_time)
+
+        for schedule in self.schedules:
+            if schedule.type == TaskType.FIXED:
+                if schedule.start_at and schedule.end_at:
+                    task_start_min = _hhmm_to_minutes(schedule.start_at)
+                    task_end_min = _hhmm_to_minutes(schedule.end_at)
+
+                    if task_start_min < start_arrange_min:
+                        raise ValueError(
+                            f"FIXED 작업 '{schedule.title}'(taskId={schedule.task_id})의 "
+                            f"시작 시간({schedule.start_at})이 배치 시작 시각({self.start_arrange}) 이전입니다."
+                        )
+                    if task_end_min > day_end_min:
+                        raise ValueError(
+                            f"FIXED 작업 '{schedule.title}'(taskId={schedule.task_id})의 "
+                            f"종료 시간({schedule.end_at})이 하루 종료 시간({self.user.day_end_time}) 이후입니다."
+                        )
+
+        return self
+
 
 # ============================================================
 # Response Models (TEST)
 # ============================================================
+
+class ChildScheduleTest(BaseModel):
+    """
+    [응답] 분할된 하위 작업 (긴 작업을 여러 시간대로 나눈 경우).
+
+    예: "통계학 과제 (긴급)"이 2시간 이상이면
+        - "통계학 과제 (긴급) - 1" (09:30~10:00)
+        - "통계학 과제 (긴급) - 2" (11:00~12:00)
+    """
+    model_config = ConfigDict(populate_by_name=True)
+
+    title: str = Field(..., max_length=60, description="분할된 작업 제목", examples=["통계학 과제 (긴급) - 1"])
+    start_at: TimeHHMM = Field(..., alias="startAt", description="시작 시간(HH:MM)")
+    end_at: TimeHHMM = Field(..., alias="endAt", description="종료 시간(HH:MM)")
+
 
 class PlannerScheduleResultTest(BaseModel):
     """
@@ -346,11 +470,13 @@ class PlannerScheduleResultTest(BaseModel):
     - assignmentStatus:
         * type=FIXED -> ASSIGNED
         * type=FLEX  -> EXCLUDED
+    - children: 긴 작업(HOUR_1_TO_2 이상)이 분할 배치된 경우 하위 작업 목록
     """
     model_config = ConfigDict(populate_by_name=True)
 
     task_id: BigInt64 = Field(..., alias="taskId", description="Schedule.Task_id(BIGINT)")
     day_plan_id: BigInt64 = Field(..., alias="dayPlanId", description="Schedule.dayPlanId(BIGINT)")
+    title: str = Field(..., max_length=60, description="작업 제목", examples=["통계학 실습 과제"])
 
     type: TaskType = Field(..., description="작업 타입(FIXED/FLEX)")
     assigned_by: AssignedBy = Field(..., alias="assignedBy", description="배치/수정 주체(FIXED=USER, FLEX=AI)")
@@ -358,6 +484,11 @@ class PlannerScheduleResultTest(BaseModel):
 
     start_at: Optional[TimeHHMM] = Field(None, alias="startAt", description="시작 시간(HH:MM)")
     end_at: Optional[TimeHHMM] = Field(None, alias="endAt", description="종료 시간(HH:MM)")
+
+    children: Optional[List["ChildScheduleTest"]] = Field(
+        None,
+        description="분할 배치된 하위 작업 목록 (긴 작업이 여러 시간대로 나뉜 경우)"
+    )
 
 
 class PlannerGenerateResponseTest(BaseModel):
