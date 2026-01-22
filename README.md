@@ -33,7 +33,18 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### 4. 접속
+### 4. 환경 변수 설정
+
+`.env.example` 파일을 복사하여 `.env` 파일을 생성하고, 필요한 값을 설정합니다.
+
+```bash
+cp .env.example .env
+# .env 파일을 열어 GEMINI_API_KEY 등 필요한 값 설정
+```
+
+> **Note**: 환경 변수 상세 설명은 [.env.example](.env.example) 파일을 참고하세요.
+
+### 5. 접속
 
 - Swagger UI: http://localhost:8000/docs
 - Health Check: http://localhost:8000/health
@@ -45,13 +56,26 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 MOLIP-AI/
 ├── app/
-│   ├── main.py           # FastAPI 애플리케이션 진입점
-│   ├── api/v1/           # API 엔드포인트 (버전별 라우터)
-│   ├── models/           # Pydantic 모델 (Request/Response 스키마)
-│   ├── services/         # 비즈니스 로직
-│   └── core/             # 환경 설정, 공통 유틸리티
-├── requirements.txt      # 패키지 목록
-└── .env                  # 환경 변수
+│   ├── __init__.py
+│   ├── main.py                      # FastAPI 애플리케이션 진입점, 라우터 등록, CORS 설정
+│   ├── api/
+│   │   ├── __init__.py
+│   │   └── v1/
+│   │       ├── __init__.py
+│   │       └── gemini_test_planners.py  # AI 플래너 생성 API 엔드포인트 (Gemini TEST)
+│   ├── models/
+│   │   ├── __init__.py
+│   │   └── planner_test.py          # Pydantic 모델 (Request/Response 스키마, 검증 로직)
+│   ├── services/
+│   │   ├── __init__.py
+│   │   └── gemini_test_planner_service.py  # Gemini API 호출 및 플래너 생성 비즈니스 로직
+│   └── core/
+│       ├── __init__.py
+│       └── config.py                # 환경 변수 설정 (Settings 클래스)
+├── requirements.txt                 # Python 패키지 의존성
+├── .env                             # 환경 변수 (로컬용, Git 미포함)
+├── .env.example                     # 환경 변수 예시 파일
+└── .env.production                  # 프로덕션 환경 변수 (Git 미포함)
 ```
 
 ---

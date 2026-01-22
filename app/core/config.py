@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     # API Keys (향후 AI 로직 구현 시 사용)
     openai_api_key: Optional[str] = None
     anthropic_api_key: Optional[str] = None
+    gemini_api_key: Optional[str] = None  # GEMINI TEST용
 
     # Database (향후 개인화 데이터 저장 시 사용)
     database_url: Optional[str] = None
