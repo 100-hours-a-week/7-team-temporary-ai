@@ -113,7 +113,8 @@ def _create_gemini_prompt(request: PlannerGenerateRequestTest) -> str:
 2. `assignmentStatus`: "ASSIGNED" (배치함) 또는 "EXCLUDED" (제외함)
 3. `startAt`, `endAt`: 시간 배치 (분할 배치되는 경우 null)
 4. `children`: **긴 작업(HOUR_1_TO_2 이상, 90분 이상)을 여러 시간대에 분할 배치하는 경우 필수**
-
+      - 이때 예시 생성을 위하여 반드시 "estimatedTimeRange": "HOUR_1_TO_2"인 작업 중 하나는 children를 포함하세요.
+      
 ```json
 {{
   "schedules": [
@@ -144,6 +145,7 @@ def _create_gemini_prompt(request: PlannerGenerateRequestTest) -> str:
     - startAt: null, endAt: null (부모는 시간 없음!)
     - children: [{{"title": "통계학 과제 (긴급) - 1", "startAt": "09:30", "endAt": "10:00"}}, {{"title": "통계학 과제 (긴급) - 2", "startAt": "13:00", "endAt": "15:30"}}]
   - 분할하지 않는 경우 children=null
+  - 이때 예시 생성을 위하여 반드시 "estimatedTimeRange": "HOUR_1_TO_2"인 작업 중 하나는 children를 포함하세요.
 - **FLEX 작업 중 40-60% 정도는 EXCLUDED로 설정** (현실적인 플래너 작성)
 - 우선순위: 긴급도 > 몰입도 > 예상 소요 시간을 고려하여 중요한 작업만 ASSIGNED로 배치
 
