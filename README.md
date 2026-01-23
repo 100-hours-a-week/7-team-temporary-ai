@@ -51,6 +51,53 @@ cp .env.example .env
 
 ---
 
+## LLM 설정 (Current Configuration)
+
+현재 구현 단계(Step 3)에서는 다음과 같은 설정을 사용합니다. (추후 벤치마크 결과에 따라 모델이나 재시도 정책은 변경될 수 있습니다.)
+
+- **Model**: `gemini-2.5-flash-lite` (Google GenAI)
+- **Retry Policy**: Node 1(구조 분석)에서 LLM 응답 실패 시 **총 5회(1회 시도 + 4회 재시도)** 수행 후 Fallback 로직으로 전환합니다.
+
+---
+
+## 테스트 방법 (단위 테스트)
+
+**주의사항**: `tests` 경로를 인식하기 위해 모듈 실행 방식(`-m`)을 권장합니다.
+( `.env`에 `GEMINI_API_KEY`가 설정되어 있어야 실제 API 연동 테스트가 가능합니다. )
+
+### Node 1 (구조 분석) 테스트
+
+**1. 실제 AI 연동 테스트 (Integration)**
+```bash
+python -m unittest tests/test_node1.py
+```
+- **기능**: Gemini 실제 연동을 통해 카테고리 분류, 그룹핑(System Enforcement), 에러 처리를 검증합니다.
+- **데이터**: 대학교 4학년 시나리오 (논문, 취업, 졸업프로젝트 등)
+
+**2. 재시도 및 폴백 테스트 (Retry/Fallback)**
+```bash
+python -m unittest tests/test_node1_fallback.py
+```
+- **기능**: AI 호출이 연속적으로 실패할 경우, 시스템이 자가적으로 '기타' 카테고리 및 시간 기반 인지부하를 할당하는지 검증합니다.
+- **방법**: Mock을 사용하여 5회 연속 실패를 시뮬레이션합니다.
+83: 
+84: ### Node 2 (중요도/필터링) 및 통합 테스트
+85: 
+86: **1. Node 2 단위 테스트**
+87: ```bash
+88: python -m unittest tests/test_node2.py
+89: ```
+90: - **기능**: 중요도(Importance) 및 피로도(Fatigue) 수식의 정확성 검증. `ERROR` 카테고리 필터링 동작 확인.
+91: 
+92: **2. Node 1 -> Node 2 통합 테스트 (Integration)**
+93: ```bash
+94: python -m unittest tests/test_integration_node1_node2.py
+95: ```
+96: - **기능**: LLM이 분석한 결과를 Node 2가 받아 처리하는 전체 파이프라인 흐름을 검증합니다.
+
+
+---
+
 ## 프로젝트 구조
 
 ```
@@ -63,6 +110,12 @@ MOLIP-AI/
 │   │   └── v1/
 │   │       ├── __init__.py
 │   │       └── gemini_test_planners.py  # AI 플래너 생성 API 엔드포인트 (Gemini TEST)
+│   ├── llm/                         # [NEW] LLM 관련 (Client, Prompts)
+│   │   ├── __init__.py
+│   │   ├── gemini_client.py         # Google GenAI (Gemini) 클라이언트 (v2.5)
+│   │   └── prompts/
+│   │       ├── __init__.py
+│   │       └── node1_prompt.py      # Node 1 (구조 분석) 프롬프트
 │   ├── models/
 │   │   ├── __init__.py
 │   │   ├── planner/                 # [NEW] AI 플래너 V2 모델
@@ -77,6 +130,9 @@ MOLIP-AI/
 │   │   │   └── utils/
 │   │   │       ├── time_utils.py    # 시간 계산 유틸리티
 │   │   │       └── session_utils.py # 세션 계산 유틸리티
+│   │   │   └── nodes/               # [NEW] LangGraph 노드 로직
+│   │   │       └── node1_structure.py # Node 1: 구조 분석 (분류, 그룹핑)
+│   │   │       └── node2_importance.py # Node 2: 중요도 산정 및 필터링
 │   │   └── gemini_test_planner_service.py  # Gemini API 호출 및 플래너 생성 비즈니스 로직
 │   ├── db/                          # [NEW] 데이터베이스 관련
 │   │   ├── __init__.py

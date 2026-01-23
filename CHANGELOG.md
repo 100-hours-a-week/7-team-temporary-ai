@@ -63,6 +63,28 @@
     - [x] **[app/services/planner/utils/time_utils.py](app/services/planner/utils/time_utils.py)**: 시간 변환 및 TimeZone 계산 유틸리티
     - [x] **[app/services/planner/utils/session_utils.py](app/services/planner/utils/session_utils.py)**: 가용 시간(FreeSession) 계산 로직
 
+3.  **Step 3: Node 1 (Structure Analysis) 구현 및 검증 완료**
+    - [x] **[app/llm/prompts/node1_prompt.py](app/llm/prompts/node1_prompt.py)**: LLM 프롬프트 설계 (Category, CogLoad, OrderInGroup 추출)
+    - [x] **[app/llm/gemini_client.py](app/llm/gemini_client.py)**: `google-genai` 라이브러리 기반 Gemini 2.5 Flash Lite 연동
+        - **Note**: 현재 LLM은 `gemini-2.5-flash-lite`를 사용 중이며, 추후 변경될 수 있음.
+    - [x] **[app/services/planner/nodes/node1_structure.py](app/services/planner/nodes/node1_structure.py)**: 구조 분석 노드 로직
+        - **Strict Grouping**: LLM의 임의 그룹 생성을 차단하고 시스템의 상위 작업(`parentScheduleId`) 기반 강제 그룹핑 적용
+        - **Error Handling**: 무의미한 입력(Gibberish)을 `ERROR` 카테고리로 필터링
+        - **Retry Logic**: 안정성을 위해 총 5회(초기 1회 + 재시도 4회) 시도 후 Fallback 처리하도록 설정 (추후 조정 가능)
+        - **Real LLM Verification**: 실제 Gemini API 연동 테스트(`tests/test_node1.py`)를 통해 논문/취업준비 시나리오 검증 완료
+    - [x] **Refactoring**: API 명세서 준수를 위해 `request.py`의 `groups` 필드 제거 및 `schedules` 내 Parent Task 조회 방식으로 변경
+
+4.  **Step 4: Node 2 (Task Importance) 구현 및 검증 완료**
+    - [x] **[app/services/planner/nodes/node2_importance.py](app/services/planner/nodes/node2_importance.py)**: 중요도(Importance) 및 피로도(Fatigue) 계산 로직
+        - **Importance**: `FocusLevel` + `Urgency` + `CategoryWeight` 기반 점수 산정
+        - **Fatigue**: `Duration` + `CognitiveLoad` 기반 피로도 비용 산정
+        - **Filtering**: **오타 허용/Gibberish 필터링** 정책 적용 (단순 오타는 허용, "asdf" 등은 삭제)
+    - [x] **[models/planner/request.py](models/planner/request.py)**: 불필요한 `HOUR_OVER_2` 옵션 제거
+    - [x] **Test Infrastructure Refactoring**:
+        - `tests/data/test_request.json` 생성 (공용 테스트 데이터셋)
+        - `tests/test_node1.py`, `tests/test_node2.py`가 위 JSON 데이터를 공유하도록 수정
+    - [x] **Integration Test**: `tests/test_integration_node1_node2.py`를 통해 Node 1 -> Node 2 파이프라인 흐름 및 필터링 검증 완료
+
 ## 2026-01-22
 
 ### API 통합 및 기능 개선

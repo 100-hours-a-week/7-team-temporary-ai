@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: List[str] = ["*"]
     
+    # Logging
+    log_level: str = "INFO"
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
@@ -33,6 +36,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"
         # Map env vars to fields if names differ
         # (Assuming standard names match, but for ALLOWED_ORIGINS -> cors_origins we might need alias if stricter)
         # But here I'll just rely on loose matching or add alias if needed.

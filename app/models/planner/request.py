@@ -3,7 +3,7 @@ from typing import List, Optional, Literal
 
 TimeZone = Literal["MORNING", "AFTERNOON", "EVENING", "NIGHT"]
 TaskType = Literal["FIXED", "FLEX"]
-EstimatedTimeRange = Literal["MINUTE_UNDER_30", "MINUTE_30_TO_60", "HOUR_1_TO_2", "HOUR_OVER_2"]
+EstimatedTimeRange = Literal["MINUTE_UNDER_30", "MINUTE_30_TO_60", "HOUR_1_TO_2"]
 
 class UserInfo(BaseModel):
     userId: int
@@ -22,13 +22,10 @@ class ScheduleItem(BaseModel):
     focusLevel: Optional[int] = None
     isUrgent: Optional[bool] = None
 
-class GroupInfo(BaseModel):
-    groupId: str
-    groupLabel: str
-    relatedTasks: List[int]
+
 
 class ArrangementState(BaseModel):
     user: UserInfo
     startArrange: str
     schedules: List[ScheduleItem]
-    groups: List[GroupInfo] = []
+    schedules: List[ScheduleItem]
