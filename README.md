@@ -65,10 +65,22 @@ MOLIP-AI/
 │   │       └── gemini_test_planners.py  # AI 플래너 생성 API 엔드포인트 (Gemini TEST)
 │   ├── models/
 │   │   ├── __init__.py
+│   │   ├── planner/                 # [NEW] AI 플래너 V2 모델
+│   │   │   ├── request.py           # API 요청 모델
+│   │   │   ├── response.py          # API 응답 모델
+│   │   │   ├── internal.py          # 내부 처리용 모델
+│   │   │   └── weights.py           # 가중치 설정 모델
 │   │   └── planner_test.py          # Pydantic 모델 (Request/Response 스키마, 검증 로직)
 │   ├── services/
 │   │   ├── __init__.py
+│   │   ├── planner/                 # [NEW] AI 플래너 V2 서비스로직
+│   │   │   └── utils/
+│   │   │       ├── time_utils.py    # 시간 계산 유틸리티
+│   │   │       └── session_utils.py # 세션 계산 유틸리티
 │   │   └── gemini_test_planner_service.py  # Gemini API 호출 및 플래너 생성 비즈니스 로직
+│   ├── db/                          # [NEW] 데이터베이스 관련
+│   │   ├── __init__.py
+│   │   └── supabase_client.py       # Supabase 클라이언트
 │   └── core/
 │       ├── __init__.py
 │       └── config.py                # 환경 변수 설정 (Settings 클래스)

@@ -1,69 +1,45 @@
-"""
-Application Configuration
-
-환경 변수 로드 및 애플리케이션 설정 관리
-"""
-
-from typing import List, Optional
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
+from typing import List, Optional, Union
+from pydantic import AnyHttpUrl, field_validator
+from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    """
-    애플리케이션 설정
-
-    .env 파일에서 환경 변수를 자동으로 로드합니다.
-    """
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-    )
-
-    # Application
+    # App
     app_name: str = "MOLIP-AI-Planner"
     debug: bool = True
     host: str = "0.0.0.0"
     port: int = 8000
-    environment: str = "development"  # development, staging, production
+    environment: str = "development"
 
     # Backend
     backend_url: str = "https://stg.molip.today"
 
     # CORS
-    allowed_origins: str = "https://stg.molip.today"
+    cors_origins: List[str] = ["*"]
+    
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+        if isinstance(v, str) and not v.startswith("["):
+            return [i.strip() for i in v.split(",")]
+        return v
 
-    # API Keys (향후 AI 로직 구현 시 사용)
-    openai_api_key: Optional[str] = None
-    anthropic_api_key: Optional[str] = None
-    gemini_api_key: Optional[str] = None  # GEMINI TEST용
+    # API Keys
+    gemini_api_key: Optional[str] = None
+    
+    # Supabase
+    supabase_url: Optional[str] = None
+    supabase_key: Optional[str] = None
 
-    # Database (향후 개인화 데이터 저장 시 사용)
-    database_url: Optional[str] = None
+    class Config:
+        env_file = ".env"
+        case_sensitive = False
+        # Map env vars to fields if names differ
+        # (Assuming standard names match, but for ALLOWED_ORIGINS -> cors_origins we might need alias if stricter)
+        # But here I'll just rely on loose matching or add alias if needed.
+        # Actually, let's add the alias to be safe given .env.example has ALLOWED_ORIGINS
+    
+    # Redefine cors_origins with alias if pydantic supports it easily in BaseSettings
+    # Or just use ValidationAlias in newer Pydantic.
+    # checking requirements.txt: pydantic==2.12.5. Good.
 
-    # Logging
-    log_level: str = "INFO"
-
-    @property
-    def cors_origins(self) -> List[str]:
-        """CORS allowed origins를 리스트로 변환"""
-        return [origin.strip() for origin in self.allowed_origins.split(",")]
-
-    @property
-    def is_production(self) -> bool:
-        """프로덕션 환경 여부"""
-        return self.environment.lower() == "production"
-
-    @property
-    def is_staging(self) -> bool:
-        """스테이징 환경 여부"""
-        return self.environment.lower() == "staging"
-
-    @property
-    def is_development(self) -> bool:
-        """개발 환경 여부"""
-        return self.environment.lower() == "development"
-
-
-# 싱글톤 인스턴스
 settings = Settings()

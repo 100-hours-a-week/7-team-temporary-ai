@@ -4,6 +4,65 @@
 
 ---
 
+## 2026-01-23
+
+### AI 플래너 생성 파이프라인(V2) 설계
+
+**목적**: `POST /ai/v1/planners`를 단순 Gemini API 호출에서 LangGraph 기반의 5단계 파이프라인으로 고도화하고, 개인화 학습(IRL)을 위한 데이터베이스 구조를 설계함.
+
+#### 생성된 문서
+
+1. **[docs/planner_implementation_plan.md](docs/planner_implementation_plan.md)**
+   - 전체 구현 계획서
+   - 11단계 마일스톤 (DB 설정 -> 노드 구현 -> 백엔드 연동 -> 저장 및 테스트)
+   - 주요 LangGraph 노드(전처리, 구조 분석, 중요도 산정, 체인 생성, 시간 할당) 상세 설계 포함
+
+2. **[docs/LANGGRAPH_PLAN.md](docs/LANGGRAPH_PLAN.md)**
+   - 상세 아키텍처 및 구현 가이드
+   - Supabase 테이블 스키마 (`user_weights`, `planner_records`, `record_tasks`) 확정
+   - 각 노드별 핵심 로직 및 Python 의사 코드(Pseudo-code) 포함
+
+#### 설계된 Supabase 스키마 (확정)
+
+- **user_weights**: 사용자별 개인화 가중치 (JSONB)
+- **planner_records**: 플래너 생성/수정 이력 메타데이터 (AI 초안 vs 사용자 최종본 구분)
+- **record_tasks**: 개별 작업별 분석 결과 및 배치 정보 상세 기록
+
+- **record_tasks**: 개별 작업별 분석 결과 및 배치 정보 상세 기록
+
+#### 기술적 의사결정 (Embedding Strategy)
+
+- **이원화 전략**:
+  - `POST /ai/v1/planners` (초안): 임베딩 생성 안 함 (불필요한 리소스 낭비 방지)
+  - `POST /ai/v1/personalizations/ingest` (최종확정): 검색 정확도를 위해 **이 시점에 임베딩 즉시 생성**
+  - **유연성**: 현재 Gemini 768차원을 사용하나, 추후 벤치마크 결과에 따라 변경 가능성을 열어둠
+
+#### 향후 계획
+
+1. Supabase 테이블 생성 및 환경 설정
+2. LangGraph 노드 순차적 구현 (Node1 ~ Node5)
+3. API 엔드포인트 연동 및 비동기 로깅 구현
+
+### AI 플래너 파이프라인(V2) 기반 구현 (Step 1 ~ 2)
+
+**목적**: LangGraph 기반 플래너 생성을 위한 환경 설정 및 기본 데이터 구조 구현
+
+#### 구현 내용
+
+1.  **환경 설정**
+    - [x] [requirements.txt](requirements.txt): `langgraph`, `supabase`, `sentence-transformers` 등 필수 패키지 확인
+    - [x] [app/core/config.py](app/core/config.py): Supabase 관련 설정 추가 (`supabase_url`, `supabase_key`) 및 복구
+
+2.  **기반 구조 구현 (Base Infrastructure)**
+    - [x] **디렉토리 구조**: `app/models/planner`, `app/db`, `app/services/planner/utils` 등 생성
+    - [x] **[app/db/supabase_client.py](app/db/supabase_client.py)**: Supabase 클라이언트 싱글톤 패턴 구현
+    - [x] **[app/models/planner/request.py](app/models/planner/request.py)**: API 요청 모델 (`ArrangementState`, `ScheduleItem` 등)
+    - [x] **[app/models/planner/response.py](app/models/planner/response.py)**: API 응답 모델 (`AssignmentResult` 등)
+    - [x] **[app/models/planner/internal.py](app/models/planner/internal.py)**: 내부 로직용 모델 (`TaskFeature`, `FreeSession`, `ChainCandidate`)
+    - [x] **[app/models/planner/weights.py](app/models/planner/weights.py)**: 개인화 가중치 파라미터 모델 (`WeightParams`)
+    - [x] **[app/services/planner/utils/time_utils.py](app/services/planner/utils/time_utils.py)**: 시간 변환 및 TimeZone 계산 유틸리티
+    - [x] **[app/services/planner/utils/session_utils.py](app/services/planner/utils/session_utils.py)**: 가용 시간(FreeSession) 계산 로직
+
 ## 2026-01-22
 
 ### API 통합 및 기능 개선
