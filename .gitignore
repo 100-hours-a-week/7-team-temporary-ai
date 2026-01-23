@@ -68,7 +68,6 @@ ENV/
 # *.csv
 # *.zip
 
-claude.md
 
 # ----------------------
 # 7. 로그 파일 및 런타임
@@ -83,3 +82,14 @@ server.pid
 # ----------------------
 test_request.json
 test_request_extended.json
+
+
+
+# ----------------------
+# 9. 개별 파일
+# ----------------------
+api명세서.md
+claude.md
+V1-플래너생성-파이프라인.md
+docs/
+
