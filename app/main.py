@@ -9,36 +9,40 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.api.v1 import gemini_test_planners
+from app.api import v1
+
+VERSION = "0.1.1 (26.01.23 - Node 2)"
 
 # 로깅 설정
 logging.basicConfig(
-    level=logging.INFO if settings.debug else logging.WARNING,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO if settings.debug else logging.WARNING, # 지정한 디버그 모드
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", # 날짜, 이름, 레벨, 메세지
 )
 logger = logging.getLogger(__name__)
 
 # FastAPI 앱 초기화
 app = FastAPI(
-    title=settings.app_name,
-    description="MOLIP AI 기능 서버 - AI 플래너 생성 및 기타 AI 기능",
-    version="0.1.0 (TEST)",
+    title=settings.app_name, # 지정한 애플리케이션 이름
+    description="MOLIP AI 기능 서버",
+    version=VERSION,
     debug=settings.debug,
 )
 
 # CORS 미들웨어 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=settings.cors_origins, # 지정한 모든 도메인 접근 허용
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # 라우터 등록
-app.include_router(gemini_test_planners.router)
+## 외부 파일에 정의된 API 경로들을 앱에 포함
+app.include_router(v1.router, prefix="/ai/v1") # v1 통합 라우터 등록
 
 # Health Check 엔드포인트
+## 서버가 정상적으로 실행 중인지 확인
 @app.get("/health", tags=["Health"])
 async def health_check():
     """
@@ -50,12 +54,13 @@ async def health_check():
     return {
         "status": "healthy",
         "app": settings.app_name,
-        "version": "0.1.0 (TEST)",
+        "version": VERSION,
         "debug": settings.debug,
     }
 
 
 # Root 엔드포인트
+## 루트 경로에 접속했을 때 기본 정보를 반환
 @app.get("/", tags=["Root"])
 async def root():
     """
@@ -88,12 +93,13 @@ async def shutdown_event():
     logger.info(f"🛑 Shutting down {settings.app_name}")
 
 
+# 애플리케이션 실행
 if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(
-        "app.main:app",
+        "app.main:app", # 애플리케이션 진입점
         host=settings.host,
         port=settings.port,
-        reload=settings.debug,
+        reload=settings.debug, # 디버그 모드일 경우 코드가 수정될 때마다 서버 자동 재시작
     )

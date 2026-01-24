@@ -17,12 +17,13 @@ from app.services.gemini_test_planner_service import gemini_test_generate_planne
 logger = logging.getLogger(__name__)
 
 # 라우터 생성
+## __init__.py로 라우터 통합 관리
 router = APIRouter(
-    prefix="/ai/v1",
     tags=["AI Planner (GEMINI TEST)"]
 )
 
 
+# API 엔드포인트
 @router.post(
     "/planners",
     response_model=PlannerGenerateResponseTest,
@@ -45,9 +46,11 @@ router = APIRouter(
     - FLEX 작업 (제외됨): assignedBy="AI", assignmentStatus="EXCLUDED", startAt/endAt=null
     """,
 )
+
+# 플래너 생성 함수 (비동기))
 async def gemini_test_create_planner(
-    request: PlannerGenerateRequestTest
-) -> PlannerGenerateResponseTest:
+    request: PlannerGenerateRequestTest # 입력할 JSON 데이터 형식
+) -> PlannerGenerateResponseTest: # 출력할 JSON 데이터 형식
     """
     AI 플래너 생성 with Gemini (GEMINI TEST)
 

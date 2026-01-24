@@ -52,7 +52,7 @@ def _get_estimated_minutes(estimated_time_range: Optional[EstimatedTimeRange]) -
         EstimatedTimeRange.HOUR_2_TO_4: 180,
         EstimatedTimeRange.HOUR_OVER_4: 300,
     }
-    return mapping.get(estimated_time_range, 60)
+    return mapping.get(estimated_time_range, 60) # 매핑 테이블에 없는 값이 들어오더라도 기본값 60분
 
 
 def _create_gemini_prompt(request: PlannerGenerateRequestTest) -> str:
@@ -164,19 +164,21 @@ def _validate_and_fix_time_range(
     day_end_min = _hhmm_to_minutes(request.user.day_end_time)
 
     for result in results:
-        if result.assignment_status == AssignmentStatus.ASSIGNED and result.start_at and result.end_at:
-            task_start_min = _hhmm_to_minutes(result.start_at)
-            task_end_min = _hhmm_to_minutes(result.end_at)
+        # FIXED 작업은 검증 제외 (사용자 설정 존중)
+        # FLEX 작업만 startArrange~dayEndTime 범위 내인지 확인
+        if result.type == TaskType.FLEX and result.assignment_status == AssignmentStatus.ASSIGNED:
+            if result.start_at and result.end_at:
+                task_start_min = _hhmm_to_minutes(result.start_at)
+                task_end_min = _hhmm_to_minutes(result.end_at)
 
-            # 시간 범위를 벗어나는 경우 EXCLUDED로 변경
-            if task_start_min < start_arrange_min or task_end_min > day_end_min:
-                logger.warning(
-                    f"작업 {result.task_id}의 시간({result.start_at}~{result.end_at})이 "
-                    f"허용 범위({request.start_arrange}~{request.user.day_end_time})를 벗어나 EXCLUDED로 변경합니다."
-                )
-                result.assignment_status = AssignmentStatus.EXCLUDED
-                result.start_at = None
-                result.end_at = None
+                if task_start_min < start_arrange_min or task_end_min > day_end_min:
+                    logger.warning(
+                        f"FLEX 작업 {result.task_id}의 시간({result.start_at}~{result.end_at})이 "
+                        f"허용 범위({request.start_arrange}~{request.user.day_end_time})를 벗어나 EXCLUDED로 변경합니다."
+                    )
+                    result.assignment_status = AssignmentStatus.EXCLUDED
+                    result.start_at = None
+                    result.end_at = None
 
     return results
 
