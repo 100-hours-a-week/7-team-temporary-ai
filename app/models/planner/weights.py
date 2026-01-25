@@ -4,7 +4,14 @@ from typing import Dict
 class WeightParams(BaseModel):
     w_focus: float = 1.0
     w_urgent: float = 5.0
-    w_category: Dict[str, float] = {}
+    w_category: Dict[str, float] = {
+        "학업": 3.0,
+        "업무": 2.5,
+        "운동": 1.5,
+        "생활": 1.2,
+        "취미": 1.0,
+        "기타": 0.5
+    }
     w_carry_task: float = 2.0
     w_carry_group: float = 1.0
     w_reject_penalty: float = 2.0

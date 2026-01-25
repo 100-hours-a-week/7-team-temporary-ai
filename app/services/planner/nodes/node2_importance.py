@@ -1,3 +1,4 @@
+from typing import Dict, Optional
 from app.models.planner.internal import PlannerGraphState, TaskFeature
 from app.models.planner.request import ScheduleItem
 
@@ -15,66 +16,60 @@ COG_LOAD_VALUE = {
 
 def node2_importance(state: PlannerGraphState) -> PlannerGraphState:
     """
-    Node 2: Task Importance & Time Parameter Calculation
-    - Calculates importanceScore based on weights and user inputs.
-    - Calculates fatigueCost based on duration and cognitive load.
-    - Assigns duration parameters (plan/avg/min/max) based on estimatedTimeRange.
-    - FILTERS out tasks categorized as "ERROR" (Gibberish).
+    Node 2: 중요도 산출
+    - 중요도 계산
+    - 피로도 계산
+    - "ERROR" 카테고리 필터링
     """
-    weights = state.weights
+
+    weights = state.weights # 가중치
     
-    # Create a NEW dictionary to store only valid features
-    # This ensures dropped tasks are actually removed
-    new_task_features = {} 
+    new_task_features: Dict[int, TaskFeature] = {} 
     
-    # Create a map for quick lookup of original tasks
-    flex_task_map = {t.taskId: t for t in state.flexTasks}
+    flex_task_map: Dict[int, ScheduleItem] = {t.taskId: t for t in state.flexTasks}
 
     for task_id, feature in state.taskFeatures.items():
-        original_task = flex_task_map.get(task_id)
+        original_task: Optional[ScheduleItem] = flex_task_map.get(task_id)
         
-        # Should not happen if Node 1 works correctly, but safe guard
+        # Node 1 결과 검정
         if not original_task:
             continue
             
-        # FILTERING: Skip "ERROR" category tasks (Gibberish)
+        # 카테고리가 "ERROR"일 경우 해당 작업은 제거
         if feature.category == "ERROR":
-            # Do NOT add to new_task_features => Dropped
             continue
 
-        # 1. Importance Calculation
+        # 1. 중요도 계산
         # importanceScore = (focusLevel * w_focus) + (isUrgent ? w_urgent : 0) + w_category.get(category, 0)
-        # Default focusLevel to 5 if None (mid-point)
         focus_level = original_task.focusLevel if original_task.focusLevel is not None else 5
         is_urgent_score = weights.w_urgent if original_task.isUrgent else 0.0
-        category_score = weights.w_category.get(feature.category, 0.0)
+        category_score = weights.w_category.get(feature.category, 0.0) # 각 카테고리별로 가중치가 저장되어있음
         
+        # 중요도 계산
         importance = (focus_level * weights.w_focus) + is_urgent_score + category_score
         
-        # 2. Duration Parameters
+        # 2. 예상 시간 파라미터
         est_range = original_task.estimatedTimeRange
+        range_params = DURATION_PARAMS.get(est_range, DURATION_PARAMS["MINUTE_30_TO_60"])
         
-        # Default to MINUTE_30_TO_60 if missing or unknown (Safe Fallback)
-        params = DURATION_PARAMS.get(est_range, DURATION_PARAMS["MINUTE_30_TO_60"])
-        
-        # 3. Fatigue Cost Calculation
+        # 3. 피로도 계산
         # fatigueCost = (durationPlanMin * alpha_duration) + (cognitiveLoad_value * beta_load)
         cog_load_str = feature.cognitiveLoad or "MED" 
         cog_val = COG_LOAD_VALUE.get(cog_load_str, 1) # Default to MED=1
         
-        fatigue = (params["plan"] * weights.alpha_duration) + (cog_val * weights.beta_load)
+        fatigue = (range_params["plan"] * weights.alpha_duration) + (cog_val * weights.beta_load)
 
-        # 4. Update Feature
+        # 4. 피쳐 업데이트
         updated_feature = feature.model_copy(update={
             "importanceScore": importance,
             "fatigueCost": fatigue,
-            "durationAvgMin": params["avg"],
-            "durationPlanMin": params["plan"],
-            "durationMinChunk": params["min"],
-            "durationMaxChunk": params["max"]
+            "durationAvgMin": range_params["avg"],
+            "durationPlanMin": range_params["plan"],
+            "durationMinChunk": range_params["min"],
+            "durationMaxChunk": range_params["max"]
         })
         
         new_task_features[task_id] = updated_feature
 
-    # Return new state with updated features
+    # state 업데이트
     return state.model_copy(update={"taskFeatures": new_task_features})

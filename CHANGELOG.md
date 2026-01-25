@@ -4,6 +4,63 @@
 
 ---
 
+## 2026-01-25
+
+### FIXED 작업 제약 완화 및 시스템 안정성 강화
+
+**목적**: 사용자의 확정된 일정을 시스템이 인위적으로 제한하지 않도록 정책을 변경하고, 코드 전반의 타입 안정성과 테스트 환경을 개선함.
+
+#### 주요 변경 사항
+
+1. **[app/models/planner_test.py](app/models/planner_test.py) & [app/services/gemini_test_planner_service.py](app/services/gemini_test_planner_service.py)**
+   - **제약 완화**: `FIXED` 작업이 `startArrange` 이전이거나 `dayEndTime` 이후인 경우에도 `EXCLUDED` 처리하거나 에러를 내지 않도록 수정.
+   - **의도**: 사용자가 정한 시간은 시스템이 보정하는 대신 그대로 존중하도록 변경.
+
+2. **[app/models/planner/internal.py](app/models/planner/internal.py) & [app/services/planner/nodes/node1_structure.py](app/services/planner/nodes/node1_structure.py)**
+   - **모델 동기화**: `TaskFeature` 모델에 누락된 `combined_embedding_text` 필드 추가 및 기본값 설정.
+   - **코드 다이어트**: Pydantic의 `default_factory` 및 기본값 설정을 활용하여 `node1_structure.py` 내의 중복된 0 초기화 코드 제거.
+   - **타입 안정성**: `EstimatedTimeRange`, `ScheduleItem` 등 명시적 타입 힌트 적용으로 오타 및 런타임 에러 방지.
+
+3. **[tests/test_node1.py](tests/test_node1.py) & [tests/test_node1_fallback.py](tests/test_node1_fallback.py)**
+   - **한글 정렬 보정**: 한글(CJK) 문자의 출력 폭을 계산하는 `get_display_width` 도입으로 터미널 결과 표 정렬을 완벽하게 맞춤.
+   - **실행 환경 개선**: `sys.path` 수정을 통해 `ModuleNotFoundError` 없이 어느 위치에서든 테스트 실행이 가능하도록 보강.
+
+4. **[app/models/planner/request.py](app/models/planner/request.py)**
+   - **중복 제거**: `ArrangementState` 내 중복 정의된 `schedules` 필드 정리.
+
+#### 효과
+- **사용자 경험(UX)**: "이미 지난 약속"이나 "자정을 넘기는 일정"도 유연하게 수용 가능함.
+- **개발 생산성**: 명확한 타입 선언과 정돈된 코드로 버그 발생 확률을 낮추고 가독성 향상.
+- **가시성**: 터미널 테스트 결과가 정갈하게 출력되어 분석이 용이해짐.
+
+---
+
+## 2026-01-24
+
+### API 라우팅 구조 리팩토링 (버전화)
+
+**목적**: API 버전 관리의 용이성과 확장성을 위해 라우팅 구조를 계층화함.
+
+#### 주요 변경 사항
+
+1. [app/api/v1/__init__.py](app/api/v1/__init__.py) (신규)
+   - v1의 모든 기능을 통합하는 `router` 인스턴스 생성
+   - `gemini_test_planners` 라우터를 포함하여 v1 API 그룹화
+
+2. [app/main.py](app/main.py)
+   - 개별 기능 라우터(`gemini_test_planners`) 직접 등록 방식 제거
+   - 버전별 통합 라우터(`v1.router`)를 `/ai/v1` 접두어와 함께 등록하도록 개선
+   - 향후 v2, v3 추가 시 `main.py` 수정 없이 버전별 폴더 내에서만 관리 가능하도록 구조화
+
+3. [app/api/v1/gemini_test_planners.py](app/api/v1/gemini_test_planners.py)
+   - `APIRouter` 내의 중복된 `prefix="/ai/v1"` 제거 (통합 라우터에서 관리)
+
+#### 효과
+- **유지보수성 향상**: 새로운 API 추가 시 `app/api/v1/__init__.py`만 수정하면 됨
+- **확장성 확보**: v2, v3 등 새로운 버전을 독립적으로 추가하고 관리하기 쉬운 구조 구축
+
+---
+
 ## 2026-01-23
 
 ### AI 플래너 생성 파이프라인(V2) 설계

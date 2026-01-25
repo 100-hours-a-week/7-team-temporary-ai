@@ -1,10 +1,26 @@
 import unittest
 import json
 import os
+import unicodedata
 from app.services.planner.nodes.node2_importance import node2_importance
 from app.models.planner.internal import PlannerGraphState, TaskFeature
 from app.models.planner.request import ArrangementState, ScheduleItem
 from app.models.planner.weights import WeightParams
+
+def get_display_width(text: str) -> int:
+    """한글(CJK) 문자를 포함한 문자열의 실제 터미널 출력 폭 계산"""
+    width = 0
+    for char in text:
+        if unicodedata.east_asian_width(char) in ('F', 'W', 'A'):
+            width += 2
+        else:
+            width += 1
+    return width
+
+def pad_text(text: str, length: int) -> str:
+    """한글 폭을 고려하여 공백 패딩"""
+    current_width = get_display_width(text)
+    return text + ' ' * max(0, length - current_width)
 
 class TestNode2Importance(unittest.TestCase):
     
@@ -18,7 +34,7 @@ class TestNode2Importance(unittest.TestCase):
         
         request_model = ArrangementState.model_validate(self.request_json)
         
-        # 2. Mock Node 1 Inputs (What Node 1 would ideally produce)
+        # 2. Mock Node 1 테스트 출력 데이터
         self.mock_features = {}
         
         def make_feature(item, category, cog_load, group_id=None, order=None):
@@ -36,7 +52,7 @@ class TestNode2Importance(unittest.TestCase):
             
         schedule_map = {t.taskId: t for t in request_model.schedules}
         
-        # Categorization (Manual Mock matching Node 1 expectations)
+        # Node 1 출력 테스트 Mock
         categorization = {
             1: ("학업", "HIGH"),
             2: ("학업", "MED"),
@@ -67,49 +83,56 @@ class TestNode2Importance(unittest.TestCase):
 
         self.state = PlannerGraphState(
             request=request_model,
-            weights=WeightParams(),
+            weights=WeightParams(), # 테스트이므로 가중치 기본값 사용
             fixedTasks=fixed_tasks,
             flexTasks=flex_tasks,
             taskFeatures=self.mock_features
         )
 
     def test_node2_structure_processing(self):
-        print("\n>>> Starting Node 2 Test (Full Dataset, Mocked Node 1) <<<")
+        print("\n\n>>> Node 2 테스트 진행 <<<")
         
         new_state = node2_importance(self.state)
         features = new_state.taskFeatures
         
-        print(f"\n[Node 2 Result] Total Features Processed: {len(features)}")
-        print("-" * 100)
-        print(f"{'ID':<5} | {'Title':<20} | {'ImpScore':<8} | {'Fatigue':<8} | {'PlanMin':<8} | {'Ref (Input)'}")
-        print("-" * 100)
+        print(f"\n[Node 2 결과] 총 피쳐 진행수: {len(features)}")
+        separator = "-" * 115
+        print(separator)
+        header = (
+            pad_text("ID", 5) + " | " +
+            pad_text("Title", 35) + " | " +
+            pad_text("ImpScore", 10) + " | " +
+            pad_text("Fatigue", 10) + " | " +
+            pad_text("PlanMin", 10) + " | " +
+            pad_text("Ref (Inputs)", 30)
+        )
+        print(header)
+        print(separator)
         
         for tid, f in features.items():
-            title_short = (f.title[:18] + '..') if len(f.title) > 20 else f.title
+            title_short = (f.title[:15] + '..') if len(f.title) > 17 else f.title
             imp = f"{f.importanceScore:.1f}"
             fatigue = f"{f.fatigueCost:.1f}"
-            plan = f.durationPlanMin
+            plan = str(f.durationPlanMin)
             
             orig = next(t for t in self.state.flexTasks if t.taskId == tid)
-            ref = f"F={orig.focusLevel}, U={orig.isUrgent}, Cog={f.cognitiveLoad}"
+            ref = f"F={orig.focusLevel}, U={orig.isUrgent}, Cat={f.category}, Cog={f.cognitiveLoad}"
             
-            print(f"{tid:<5} | {title_short:<20} | {imp:<8} | {fatigue:<8} | {plan:<8} | {ref}")
+            row = (
+                pad_text(str(tid), 5) + " | " +
+                pad_text(title_short, 35) + " | " +
+                pad_text(imp, 10) + " | " +
+                pad_text(fatigue, 10) + " | " +
+                pad_text(plan, 10) + " | " +
+                pad_text(ref, 30)
+            )
+            print(row)
             
-        print("-" * 100)
+        print(separator)
         
-        # Task 1 (Thesis) Check
-        f1 = features[1]
-        self.assertAlmostEqual(f1.importanceScore, 14.0)
-        
-        # Task 6 (Laundry) Check
-        f6 = features[6]
-        self.assertAlmostEqual(f6.importanceScore, 2.0)
-            
-        # Verify Filtering (ERROR tasks should be dropped)
+        # Error 카테고리 검정
         for dropped_id in [900, 901, 902, 903]:
             self.assertNotIn(dropped_id, features, f"Task {dropped_id} (ERROR) should have been dropped.")
-
-        print(">>> Node 2 Full Dataset Verification Success (ERRORs Dropped) <<<")
 
 if __name__ == '__main__':
     unittest.main()

@@ -11,9 +11,3 @@ python-dotenv==1.2.1
 
 # Google Generative AI (Gemini) - 새로운 패키지
 google-genai==1.60.0
-
-# AI Planner V2 (LangGraph & Supabase)
-langgraph>=0.2.0
-langchain-core>=0.3.0
-supabase>=2.0.0
-sentence-transformers>=2.2.0
