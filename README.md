@@ -60,40 +60,7 @@ cp .env.example .env
 
 ---
 
-## 테스트 방법 (단위 테스트)
 
-**주의사항**: `tests` 경로를 인식하기 위해 모듈 실행 방식(`-m`)을 권장합니다.
-( `.env`에 `GEMINI_API_KEY`가 설정되어 있어야 실제 API 연동 테스트가 가능합니다. )
-
-### Node 1 (구조 분석) 테스트
-
-**1. 실제 AI 연동 테스트 (Integration)**
-```bash
-python -m unittest tests/test_node1.py
-```
-- **기능**: Gemini 실제 연동을 통해 카테고리 분류, 그룹핑(System Enforcement), 에러 처리를 검증합니다.
-- **데이터**: 대학교 4학년 시나리오 (논문, 취업, 졸업프로젝트 등)
-
-**2. 재시도 및 폴백 테스트 (Retry/Fallback)**
-```bash
-python -m unittest tests/test_node1_fallback.py
-```
-- **기능**: AI 호출이 연속적으로 실패할 경우, 시스템이 자가적으로 '기타' 카테고리 및 시간 기반 인지부하를 할당하는지 검증합니다.
-- **방법**: Mock을 사용하여 5회 연속 실패를 시뮬레이션합니다.
-83: 
-84: ### Node 2 (중요도/필터링) 및 통합 테스트
-85: 
-86: **1. Node 2 단위 테스트**
-87: ```bash
-88: python -m unittest tests/test_node2.py
-89: ```
-90: - **기능**: 중요도(Importance) 및 피로도(Fatigue) 수식의 정확성 검증. `ERROR` 카테고리 필터링 동작 확인.
-91: 
-92: **2. Node 1 -> Node 2 통합 테스트 (Integration)**
-93: ```bash
-94: python -m unittest tests/test_integration_node1_node2.py
-95: ```
-96: - **기능**: LLM이 분석한 결과를 Node 2가 받아 처리하는 전체 파이프라인 흐름을 검증합니다.
 
 
 ---
@@ -108,8 +75,8 @@ MOLIP-AI/
 │   ├── api/
 │   │   ├── __init__.py
 │   │   └── v1/
-│   │       ├── __init__.py
-│   │       └── gemini_test_planners.py  # AI 플래너 생성 API 엔드포인트 (Gemini TEST)
+│   │       ├── __init__.py          # V1 통합 라우터
+│   │       └── gemini_test_planners.py  # [V1] Gemini AI 플래너 생성 테스트 API 엔드포인트
 │   ├── llm/                         # [NEW] LLM 관련 (Client, Prompts)
 │   │   ├── __init__.py
 │   │   ├── gemini_client.py         # Google GenAI (Gemini) 클라이언트 (v2.5)
@@ -123,7 +90,7 @@ MOLIP-AI/
 │   │   │   ├── response.py          # API 응답 모델
 │   │   │   ├── internal.py          # 내부 처리용 모델
 │   │   │   └── weights.py           # 가중치 설정 모델
-│   │   └── planner_test.py          # Pydantic 모델 (Request/Response 스키마, 검증 로직)
+│   │   └── planner_test.py          # [V1] Gemini 플래너 생성 Pydantic 모델 (Request/Response 스키마, 검증 로직)
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── planner/                 # [NEW] AI 플래너 V2 서비스로직
@@ -133,21 +100,80 @@ MOLIP-AI/
 │   │   │   └── nodes/               # [NEW] LangGraph 노드 로직
 │   │   │       └── node1_structure.py # Node 1: 구조 분석 (분류, 그룹핑)
 │   │   │       └── node2_importance.py # Node 2: 중요도 산정 및 필터링
-│   │   └── gemini_test_planner_service.py  # Gemini API 호출 및 플래너 생성 비즈니스 로직
+│   │   └── gemini_test_planner_service.py  # [V1] Gemini 플래너 생성 API 호출
 │   ├── db/                          # [NEW] 데이터베이스 관련
 │   │   ├── __init__.py
 │   │   └── supabase_client.py       # Supabase 클라이언트
 │   └── core/
 │       ├── __init__.py
-│       └── config.py                # 환경 변수 설정 (Settings 클래스)
+│       └── config.py                # 환경 변수 설정 (.env 파일 설정 로드)
 ├── requirements.txt                 # Python 패키지 의존성
 ├── .env                             # 환경 변수 (로컬용, Git 미포함)
 ├── .env.example                     # 환경 변수 예시 파일
 └── .env.production                  # 프로덕션 환경 변수 (Git 미포함)
 ```
 
+### V1 - 플래너 생성 Gemini API 테스트
+1. `app/models/planner_test.py`
+    - API의 Request/Response 스키마 정의
+    - `PlannerGenerateRequestTest`, `PlannerGenerateResponseTest`
+2. `app/services/gemini_test_planner_service.py`
+    - Request를 통해 Gemini에 입력할 Prompt 정의
+    - Gemini API 호출 및 응답 json 파싱    
+3. `app/api/v1/gemini_test_planners.py`
+    - API 엔드포인트 연결 `ai/v1/planners`
+        - 백엔드 테스트용 API, 추후 LangGraph 완성 뒤 대체
+    - Request를 통해 Gemini API 호출
+    - 응답을 Response로 변환
+
 ---
 
+### V1 - Node 1: 구조 분석
+1. `app/llm/gemini_client.py`
+    - Gemini Client 초기화
+    - Gemini API 호출 및 응답 json 파싱
+2. `app/llm/prompts/node1_prompt.py`
+    - Node 1에 사용될 Prompt 정의
+    - 입력에 필요한 정보만 추출하여 포멧에 맡게 변환
+3. `app/models/planner/internal.py`
+    - Node 1의 응답을 처리하기 위한 모델 정의
+    - `PlannerGraphState` : LangGraph의 State, 모든 Node를 관통함
+    - `TaskFeature` : Task의 Feature를 나타내는 모델, Node 1의 응답을 처리하여 생성
+        - `taskId`, `dayPlanId`, `title`, `type`, `category`, `cognitiveLoad`, `groupId`, `groupLabel`, `orderInGroup`
+4. `app/services/planner/nodes/node1_structure.py`
+    - Node 1의 응답을 처리하여 `PlannerGraphState`를 업데이트
+    - `TaskFeature`를 생성하고 `PlannerGraphState`에 저장
+    - 재시도 횟수를 기록
+5. `tests/data/test_request.json`
+    - Node 1의 응답을 테스트하기 위한 Request 데이터
+6. `tests/test_node1.py`
+    - Node 1의 응답을 테스트하기 위한 테스트 코드
+```bash
+python -m unittest tests/test_node1.py
+```
+7. `tests/test_node1_fallback.py`
+    - Node 1의 폴백(4회 재시도 실패)응답을 테스트하기 위한 테스트 코드
+```bash
+python -m unittest tests/test_node1_fallback.py
+```
+---
+
+### V1 - Node 2: 중요도 산출
+1. `app/llm/prompts/node2_importance.py`
+    - Node 1의 결과를 토대로
+    - 각 작업별 중요도, 피로도를 산출
+    - 이때 개인별 가중치 파라미터가 곱해진다 (개인화 AI는 후에 구현 예정, 현재는 기본값) 
+2. `tests/test_node2.py`
+    - Node 2의 응답을 테스트하기 위한 테스트 코드
+```bash
+python -m unittest tests/test_node2.py
+```
+3. `tests/test_integration_node1_node2.py`
+    - Node 1 -> Node 2 통합 테스트
+```bash
+python -m unittest tests/test_integration_node1_node2.py
+```
+---
 ## 참고 문서
 
 - [api명세서.md](api명세서.md) - API 명세서
