@@ -4,6 +4,87 @@
 
 ---
 
+## 2026-01-23
+
+### AI 플래너 생성 파이프라인(V2) 설계
+
+**목적**: `POST /ai/v1/planners`를 단순 Gemini API 호출에서 LangGraph 기반의 5단계 파이프라인으로 고도화하고, 개인화 학습(IRL)을 위한 데이터베이스 구조를 설계함.
+
+#### 생성된 문서
+
+1. **[docs/planner_implementation_plan.md](docs/planner_implementation_plan.md)**
+   - 전체 구현 계획서
+   - 11단계 마일스톤 (DB 설정 -> 노드 구현 -> 백엔드 연동 -> 저장 및 테스트)
+   - 주요 LangGraph 노드(전처리, 구조 분석, 중요도 산정, 체인 생성, 시간 할당) 상세 설계 포함
+
+2. **[docs/LANGGRAPH_PLAN.md](docs/LANGGRAPH_PLAN.md)**
+   - 상세 아키텍처 및 구현 가이드
+   - Supabase 테이블 스키마 (`user_weights`, `planner_records`, `record_tasks`) 확정
+   - 각 노드별 핵심 로직 및 Python 의사 코드(Pseudo-code) 포함
+
+#### 설계된 Supabase 스키마 (확정)
+
+- **user_weights**: 사용자별 개인화 가중치 (JSONB)
+- **planner_records**: 플래너 생성/수정 이력 메타데이터 (AI 초안 vs 사용자 최종본 구분)
+- **record_tasks**: 개별 작업별 분석 결과 및 배치 정보 상세 기록
+
+- **record_tasks**: 개별 작업별 분석 결과 및 배치 정보 상세 기록
+
+#### 기술적 의사결정 (Embedding Strategy)
+
+- **이원화 전략**:
+  - `POST /ai/v1/planners` (초안): 임베딩 생성 안 함 (불필요한 리소스 낭비 방지)
+  - `POST /ai/v1/personalizations/ingest` (최종확정): 검색 정확도를 위해 **이 시점에 임베딩 즉시 생성**
+  - **유연성**: 현재 Gemini 768차원을 사용하나, 추후 벤치마크 결과에 따라 변경 가능성을 열어둠
+
+#### 향후 계획
+
+1. Supabase 테이블 생성 및 환경 설정
+2. LangGraph 노드 순차적 구현 (Node1 ~ Node5)
+3. API 엔드포인트 연동 및 비동기 로깅 구현
+
+### AI 플래너 파이프라인(V2) 기반 구현 (Step 1 ~ 2)
+
+**목적**: LangGraph 기반 플래너 생성을 위한 환경 설정 및 기본 데이터 구조 구현
+
+#### 구현 내용
+
+1.  **환경 설정**
+    - [x] [requirements.txt](requirements.txt): `langgraph`, `supabase`, `sentence-transformers` 등 필수 패키지 확인
+    - [x] [app/core/config.py](app/core/config.py): Supabase 관련 설정 추가 (`supabase_url`, `supabase_key`) 및 복구
+
+2.  **기반 구조 구현 (Base Infrastructure)**
+    - [x] **디렉토리 구조**: `app/models/planner`, `app/db`, `app/services/planner/utils` 등 생성
+    - [x] **[app/db/supabase_client.py](app/db/supabase_client.py)**: Supabase 클라이언트 싱글톤 패턴 구현
+    - [x] **[app/models/planner/request.py](app/models/planner/request.py)**: API 요청 모델 (`ArrangementState`, `ScheduleItem` 등)
+    - [x] **[app/models/planner/response.py](app/models/planner/response.py)**: API 응답 모델 (`AssignmentResult` 등)
+    - [x] **[app/models/planner/internal.py](app/models/planner/internal.py)**: 내부 로직용 모델 (`TaskFeature`, `FreeSession`, `ChainCandidate`)
+    - [x] **[app/models/planner/weights.py](app/models/planner/weights.py)**: 개인화 가중치 파라미터 모델 (`WeightParams`)
+    - [x] **[app/services/planner/utils/time_utils.py](app/services/planner/utils/time_utils.py)**: 시간 변환 및 TimeZone 계산 유틸리티
+    - [x] **[app/services/planner/utils/session_utils.py](app/services/planner/utils/session_utils.py)**: 가용 시간(FreeSession) 계산 로직
+
+3.  **Step 3: Node 1 (Structure Analysis) 구현 및 검증 완료**
+    - [x] **[app/llm/prompts/node1_prompt.py](app/llm/prompts/node1_prompt.py)**: LLM 프롬프트 설계 (Category, CogLoad, OrderInGroup 추출)
+    - [x] **[app/llm/gemini_client.py](app/llm/gemini_client.py)**: `google-genai` 라이브러리 기반 Gemini 2.5 Flash Lite 연동
+        - **Note**: 현재 LLM은 `gemini-2.5-flash-lite`를 사용 중이며, 추후 변경될 수 있음.
+    - [x] **[app/services/planner/nodes/node1_structure.py](app/services/planner/nodes/node1_structure.py)**: 구조 분석 노드 로직
+        - **Strict Grouping**: LLM의 임의 그룹 생성을 차단하고 시스템의 상위 작업(`parentScheduleId`) 기반 강제 그룹핑 적용
+        - **Error Handling**: 무의미한 입력(Gibberish)을 `ERROR` 카테고리로 필터링
+        - **Retry Logic**: 안정성을 위해 총 5회(초기 1회 + 재시도 4회) 시도 후 Fallback 처리하도록 설정 (추후 조정 가능)
+        - **Real LLM Verification**: 실제 Gemini API 연동 테스트(`tests/test_node1.py`)를 통해 논문/취업준비 시나리오 검증 완료
+    - [x] **Refactoring**: API 명세서 준수를 위해 `request.py`의 `groups` 필드 제거 및 `schedules` 내 Parent Task 조회 방식으로 변경
+
+4.  **Step 4: Node 2 (Task Importance) 구현 및 검증 완료**
+    - [x] **[app/services/planner/nodes/node2_importance.py](app/services/planner/nodes/node2_importance.py)**: 중요도(Importance) 및 피로도(Fatigue) 계산 로직
+        - **Importance**: `FocusLevel` + `Urgency` + `CategoryWeight` 기반 점수 산정
+        - **Fatigue**: `Duration` + `CognitiveLoad` 기반 피로도 비용 산정
+        - **Filtering**: **오타 허용/Gibberish 필터링** 정책 적용 (단순 오타는 허용, "asdf" 등은 삭제)
+    - [x] **[models/planner/request.py](models/planner/request.py)**: 불필요한 `HOUR_OVER_2` 옵션 제거
+    - [x] **Test Infrastructure Refactoring**:
+        - `tests/data/test_request.json` 생성 (공용 테스트 데이터셋)
+        - `tests/test_node1.py`, `tests/test_node2.py`가 위 JSON 데이터를 공유하도록 수정
+    - [x] **Integration Test**: `tests/test_integration_node1_node2.py`를 통해 Node 1 -> Node 2 파이프라인 흐름 및 필터링 검증 완료
+
 ## 2026-01-22
 
 ### API 통합 및 기능 개선

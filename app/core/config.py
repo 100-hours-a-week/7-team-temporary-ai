@@ -1,69 +1,43 @@
-"""
-Application Configuration
-
-환경 변수 로드 및 애플리케이션 설정 관리
-"""
-
-from typing import List, Optional
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
+from typing import List, Optional, Union
+from pydantic import AnyHttpUrl, field_validator
+from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    """
-    애플리케이션 설정
-
-    .env 파일에서 환경 변수를 자동으로 로드합니다.
-    """
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-    )
-
-    # Application
-    app_name: str = "MOLIP-AI-Planner"
-    debug: bool = True
-    host: str = "0.0.0.0"
-    port: int = 8000
-    environment: str = "development"  # development, staging, production
+    # App
+    app_name: str = "MOLIP-AI-Planner" # 애플리케이션 이름
+    debug: bool = True # 개발 모드
+    host: str = "0.0.0.0" # 서버 호스트
+    port: int = 8000 # 서버 포트
+    environment: str = "development" # 환경
 
     # Backend
-    backend_url: str = "https://stg.molip.today"
+    backend_url: str = "https://stg.molip.today" # 백엔드 URL
 
     # CORS
-    allowed_origins: str = "https://stg.molip.today"
-
-    # API Keys (향후 AI 로직 구현 시 사용)
-    openai_api_key: Optional[str] = None
-    anthropic_api_key: Optional[str] = None
-    gemini_api_key: Optional[str] = None  # GEMINI TEST용
-
-    # Database (향후 개인화 데이터 저장 시 사용)
-    database_url: Optional[str] = None
-
+    cors_origins: List[str] = ["*"] # 모든 도메인 접근 허용
+    
     # Logging
-    log_level: str = "INFO"
+    log_level: str = "INFO" # 로그의 상세 수준
 
-    @property
-    def cors_origins(self) -> List[str]:
-        """CORS allowed origins를 리스트로 변환"""
-        return [origin.strip() for origin in self.allowed_origins.split(",")]
+    # 환경 변수에서 콤마로 구분된 문자열이 들어오면 파이썬 리스트 형태로 변환
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+        if isinstance(v, str) and not v.startswith("["):
+            return [i.strip() for i in v.split(",")]
+        return v
 
-    @property
-    def is_production(self) -> bool:
-        """프로덕션 환경 여부"""
-        return self.environment.lower() == "production"
+    # API Keys
+    gemini_api_key: Optional[str] = None # Gemini API 키
+    
+    # Supabase
+    supabase_url: Optional[str] = None # Supabase URL
+    supabase_key: Optional[str] = None # Supabase API 키
 
-    @property
-    def is_staging(self) -> bool:
-        """스테이징 환경 여부"""
-        return self.environment.lower() == "staging"
+    class Config:
+        env_file = ".env" # 환경 변수 파일
+        case_sensitive = False # 대소문자 구분 하지 않음
+        extra = "ignore" # Settings 클래스에 정의되지 않은 환경 변수가 있더라고 에러를 내지 않음
 
-    @property
-    def is_development(self) -> bool:
-        """개발 환경 여부"""
-        return self.environment.lower() == "development"
-
-
-# 싱글톤 인스턴스
+#인스턴스 생성
 settings = Settings()

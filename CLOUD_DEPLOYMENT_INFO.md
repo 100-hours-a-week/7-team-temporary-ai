@@ -39,23 +39,7 @@ GEMINI_API_KEY=실제_API_키_입력
 ```
 
 ### ⚠️ 필수 환경 변수: GEMINI_API_KEY
-
-**이 서버는 Gemini API를 사용하므로 `GEMINI_API_KEY`가 반드시 설정되어야 합니다.**
-
-API 키가 없으면 서버 시작은 되지만, `/ai/v1/planners` API 호출 시 500 에러가 발생합니다.
-
-#### Gemini API 키 발급 방법
-
-1. [Google AI Studio](https://aistudio.google.com/) 접속
-2. Google 계정으로 로그인
-3. 좌측 메뉴에서 "Get API key" 클릭
-4. "Create API key" 버튼 클릭
-5. 프로젝트 선택 또는 새 프로젝트 생성
-6. 생성된 API 키 복사 (형식: `AIza...`)
-
-#### API 키 보안 주의사항
-
-- API 키는 절대 Git에 커밋하지 마세요
+Max에게 문의 주시기 바랍니다
 - `.env` 파일은 `.gitignore`에 포함되어 있습니다
 - 프로덕션 환경에서는 클라우드 시크릿 매니저 사용 권장
 
@@ -166,29 +150,6 @@ GET http://서버주소:8000/health
 - **Timeout**: 5초
 - **Healthy threshold**: 2
 - **Unhealthy threshold**: 3
-
-## API 엔드포인트
-
-### TEST API
-```
-POST http://서버주소:8000/ai/v1/planners
-Content-Type: application/json
-```
-
-### Swagger UI (API 문서)
-```
-GET http://서버주소:8000/docs
-```
-
-## 포트
-- **기본 포트**: 8000
-- 변경 시: `PORT` 환경 변수 설정
-
-## CORS
-- `ALLOWED_ORIGINS` 환경 변수로 관리
-- 스테이징: `https://stg.molip.today`
-- 프로덕션: `https://molip.today`
-- 여러 도메인: 쉼표로 구분 (예: `https://a.com,https://b.com`)
 
 ## 로그
 

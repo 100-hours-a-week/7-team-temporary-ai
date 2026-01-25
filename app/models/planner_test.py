@@ -18,15 +18,17 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 # Type Definitions
 # ============================================================
 
-TimeHHMM = Annotated[
-    str,
-    Field(
-        pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$",
-        description="24시간제 HH:MM 형식",
-        examples=["09:00", "18:30", "23:59"],
+# 시간 형식 강제 정규식 패턴
+TimeHHMM = Annotated[ # 기본 타입에 추가적인 메타데이터를 덧붙임
+    str, # 기본 타입
+    Field( # 메타데이터 - 형식 정보
+        pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$", # 정규식 패턴
+        description="24시간제 HH:MM 형식", # 설명
+        examples=["09:00", "18:30", "23:59"], # 예시
     ),
 ]
 
+# BIGINT(64-bit) 범위 정수
 BigInt64 = Annotated[
     int,
     Field(
@@ -126,9 +128,10 @@ class PlannerUserContextTest(BaseModel):
     - focusTimeZone: Users.focusTimeZone
     - dayEndTime: Users.dayEndTime을 Backend가 HH:MM로 변환해 전달
     """
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True) # 파이썬 변수명과 alias 모두 동일하게 입력할 수 있게 함
 
-    user_id: BigInt64 = Field(..., alias="userId", description="Users.User_id(BIGINT)")
+    # alias는 API 명세서의 변수명을 사용함
+    user_id: BigInt64 = Field(..., alias="userId", description="Users.User_id(BIGINT)") # ...은 필수라는 의미
     focus_time_zone: FocusTimeZone = Field(..., alias="focusTimeZone", description="몰입 시간대")
     day_end_time: TimeHHMM = Field(..., alias="dayEndTime", description="하루 마무리 시간(HH:MM)")
 
@@ -164,7 +167,7 @@ class PlannerScheduleInputTest(BaseModel):
 
     day_plan_id: BigInt64 = Field(..., alias="dayPlanId", description="Schedule.dayPlanId(BIGINT)")
 
-    title: str = Field(..., max_length=60, description="작업 제목", examples=["통계학 실습 과제"])
+    title: str = Field(..., description="작업 제목", examples=["통계학 실습 과제"])
     type: TaskType = Field(..., description="작업 타입(FIXED/FLEX)")
 
     start_at: Optional[TimeHHMM] = Field(None, alias="startAt", description="시작 시간(HH:MM)")
@@ -178,7 +181,9 @@ class PlannerScheduleInputTest(BaseModel):
     )
     is_urgent: Optional[bool] = Field(None, alias="isUrgent", description="급해요 여부")
 
-    @model_validator(mode="after")
+    # 입력 데이터 검증기
+    ## type에 따른 startAt/endAt 검증
+    @model_validator(mode="after") #after : 데이터 타입 확인 후 해당 함수 실행
     def _validate_time_rules(self) -> "PlannerScheduleInputTest":
         # FIXED는 startAt/endAt 필수
         if self.type == TaskType.FIXED:
@@ -214,7 +219,7 @@ class PlannerGenerateRequestTest(BaseModel):
     - schedules: dayPlanId의 전체 작업 목록(Schedule 기반)
     """
     model_config = ConfigDict(
-        populate_by_name=True,
+        populate_by_name=True,# 파이썬 변수명과 alias 모두 동일하게 입력할 수 있게 함
         json_schema_extra={
             "example": {
                 "user": {
@@ -412,31 +417,6 @@ class PlannerGenerateRequestTest(BaseModel):
     user: PlannerUserContextTest = Field(..., description="사용자 컨텍스트(Users 기반)")
     start_arrange: TimeHHMM = Field(..., alias="startArrange", description="배치하기 버튼 클릭 시각(HH:MM)")
     schedules: List[PlannerScheduleInputTest] = Field(..., description="배치 대상 작업 목록(Schedule 기반)")
-
-    @model_validator(mode="after")
-    def _validate_fixed_time_range(self) -> "PlannerGenerateRequestTest":
-        """FIXED 작업의 시간이 startArrange~dayEndTime 범위 내인지 검증"""
-        start_arrange_min = _hhmm_to_minutes(self.start_arrange)
-        day_end_min = _hhmm_to_minutes(self.user.day_end_time)
-
-        for schedule in self.schedules:
-            if schedule.type == TaskType.FIXED:
-                if schedule.start_at and schedule.end_at:
-                    task_start_min = _hhmm_to_minutes(schedule.start_at)
-                    task_end_min = _hhmm_to_minutes(schedule.end_at)
-
-                    if task_start_min < start_arrange_min:
-                        raise ValueError(
-                            f"FIXED 작업 '{schedule.title}'(taskId={schedule.task_id})의 "
-                            f"시작 시간({schedule.start_at})이 배치 시작 시각({self.start_arrange}) 이전입니다."
-                        )
-                    if task_end_min > day_end_min:
-                        raise ValueError(
-                            f"FIXED 작업 '{schedule.title}'(taskId={schedule.task_id})의 "
-                            f"종료 시간({schedule.end_at})이 하루 종료 시간({self.user.day_end_time}) 이후입니다."
-                        )
-
-        return self
 
 
 # ============================================================
