@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api import v1
 
-VERSION = "0.1.1 (26.01.23 - Node 2)"
+VERSION = "0.1.1 (26.01.25 - Gemini Test - request, response 구조 에러 수정)"
 
 # 로깅 설정
 logging.basicConfig(

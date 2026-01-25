@@ -6,6 +6,8 @@ POST /ai/v1/gemini-test/planners 엔드포인트
 
 import logging
 from fastapi import APIRouter, status, HTTPException
+from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 
 from app.models.planner_test import (
     PlannerGenerateRequestTest,
@@ -22,6 +24,9 @@ router = APIRouter(
     tags=["AI Planner (GEMINI TEST)"]
 )
 
+
+import time
+import uuid
 
 # API 엔드포인트
 @router.post(
@@ -45,6 +50,7 @@ router = APIRouter(
     - FLEX 작업 (배치됨): assignedBy="AI", assignmentStatus="ASSIGNED", startAt/endAt 필수
     - FLEX 작업 (제외됨): assignedBy="AI", assignmentStatus="EXCLUDED", startAt/endAt=null
     """,
+    response_model_exclude_unset=True,
 )
 
 # 플래너 생성 함수 (비동기))
@@ -65,20 +71,59 @@ async def gemini_test_create_planner(
     logger.info(f"[GEMINI TEST API] 전체 작업 수: {len(request.schedules)}")
     logger.info("=" * 80)
 
+    start_time = time.time()
+    trace_id = str(uuid.uuid4())
+
     try:
         # Gemini API 서비스 호출
-        response = await gemini_test_generate_planner(request)
+        results = await gemini_test_generate_planner(request)
+        
+        end_time = time.time()
+        process_time = round(end_time - start_time, 2)
 
         logger.info("=" * 80)
-        logger.info(f"[GEMINI TEST API] 응답 완료: {len(response.schedules)} 작업")
+        logger.info(f"[GEMINI TEST API] 응답 완료: {len(results)} 작업")
+        logger.info(f"[GEMINI TEST API] 처리 시간: {process_time}초")
         logger.info("=" * 80)
 
-        return response
+        return PlannerGenerateResponseTest(
+            success=True,
+            processTime=process_time,
+            results=results
+        )
 
     except ValueError as e:
+        end_time = time.time()
+        process_time = round(end_time - start_time, 2)
         logger.error(f"[GEMINI TEST API] Validation 에러: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        
+        # 400 Bad Request에 해당하는 에러 응답 반환
+        error_response = PlannerGenerateResponseTest(
+            success=False,
+            processTime=process_time,
+            errorCode="PLANNER_BAD_REQUEST",
+            message=str(e),
+            traceId=trace_id
+        )
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content=jsonable_encoder(error_response, exclude_unset=True)
+        )
 
     except Exception as e:
+        end_time = time.time()
+        process_time = round(end_time - start_time, 2)
         logger.error(f"[GEMINI TEST API] 서버 에러: {e}")
-        raise HTTPException(status_code=500, detail="플래너 생성 중 오류가 발생했습니다.")
+        
+        # 500 Internal Server Error에 해당하는 에러 응답 반환
+        error_response = PlannerGenerateResponseTest(
+            success=False,
+            processTime=process_time,
+            errorCode="PLANNER_SERVER_ERROR",
+            message="플래너 생성 중 오류가 발생했습니다.",
+            traceId=trace_id
+        )
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content=jsonable_encoder(error_response, exclude_unset=True)
+        )

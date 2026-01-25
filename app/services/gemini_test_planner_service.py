@@ -13,7 +13,7 @@ from google import genai
 
 from app.models.planner_test import (
     PlannerGenerateRequestTest,
-    PlannerGenerateResponseTest,
+    PlannerGenerateRequestTest,
     PlannerScheduleResultTest,
     PlannerScheduleInputTest,
     ChildScheduleTest,
@@ -186,8 +186,8 @@ def _validate_and_fix_time_range(
 def _parse_gemini_response(
     response_text: str,
     request: PlannerGenerateRequestTest
-) -> PlannerGenerateResponseTest:
-    """Gemini API 응답을 파싱하여 PlannerGenerateResponseTest로 변환"""
+) -> List[PlannerScheduleResultTest]:
+    """Gemini API 응답을 파싱하여 PlannerScheduleResultTest 리스트로 변환"""
 
     try:
         # JSON 부분만 추출 (```json ``` 제거)
@@ -284,7 +284,7 @@ def _parse_gemini_response(
 
         results.sort(key=sort_key)
 
-        return PlannerGenerateResponseTest(schedules=results)
+        return results
 
     except Exception as e:
         logger.error(f"Gemini 응답 파싱 실패: {e}")
@@ -294,7 +294,7 @@ def _parse_gemini_response(
 
 async def gemini_test_generate_planner(
     request: PlannerGenerateRequestTest
-) -> PlannerGenerateResponseTest:
+) -> List[PlannerScheduleResultTest]:
     """
     Gemini API를 사용한 플래너 생성 함수
 
@@ -302,7 +302,7 @@ async def gemini_test_generate_planner(
         request: PlannerGenerateRequestTest
 
     Returns:
-        PlannerGenerateResponseTest
+        List[PlannerScheduleResultTest]
     """
 
     # Gemini API 설정
@@ -339,8 +339,8 @@ async def gemini_test_generate_planner(
         result = _parse_gemini_response(response_text, request)
 
         # 결과 로깅
-        assigned_count = sum(1 for r in result.schedules if r.assignment_status == AssignmentStatus.ASSIGNED)
-        excluded_count = sum(1 for r in result.schedules if r.assignment_status == AssignmentStatus.EXCLUDED)
+        assigned_count = sum(1 for r in result if r.assignment_status == AssignmentStatus.ASSIGNED)
+        excluded_count = sum(1 for r in result if r.assignment_status == AssignmentStatus.EXCLUDED)
 
         logger.info("=" * 80)
         logger.info("[GEMINI TEST] 플래너 생성 완료")

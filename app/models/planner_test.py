@@ -471,13 +471,32 @@ class PlannerScheduleResultTest(BaseModel):
     )
 
 
+class PlannerErrorDetail(BaseModel):
+    """[응답] 에러 상세 정보"""
+    field: str = Field(..., description="에러 발생 필드명")
+    reason: str = Field(..., description="에러 원인")
+
+
 class PlannerGenerateResponseTest(BaseModel):
     """
     [응답] POST /ai/v1/planners Response Body (TEST).
 
-    구성
-    - schedules: 배치 결과 작업 목록
+    구성:
+    - success: 성공 여부
+    - processTime: 처리 시간 (초)
+    - results: 성공 시 결과 목록 (실패 시 null)
+    - errorCode/message/details/traceId: 실패 시 에러 정보 (성공 시 null)
     """
     model_config = ConfigDict(populate_by_name=True)
 
-    schedules: List[PlannerScheduleResultTest] = Field(..., description="배치 결과 작업 목록")
+    success: bool = Field(..., description="요청 처리 성공 여부")
+    process_time: float = Field(..., alias="processTime", description="서버 처리 시간(초)")
+    
+    # 성공 시 필드
+    results: Optional[List[PlannerScheduleResultTest]] = Field(None, description="배치 결과 목록")
+
+    # 실패 시 필드
+    error_code: Optional[str] = Field(None, alias="errorCode", description="에러 코드")
+    message: Optional[str] = Field(None, description="에러 메시지")
+    details: Optional[List[PlannerErrorDetail]] = Field(None, description="상세 에러 내역")
+    trace_id: Optional[str] = Field(None, alias="traceId", description="트랜잭션/에러 추적 ID")
