@@ -1,136 +1,106 @@
 import json
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Literal
 
 from app.models.planner.internal import TaskFeature, PlannerGraphState
 from app.llm.gemini_client import get_gemini_client
 from app.llm.prompts.node1_prompt import NODE1_SYSTEM_PROMPT, format_tasks_for_llm
-from app.models.planner.request import EstimatedTimeRange
+from app.models.planner.request import EstimatedTimeRange, ScheduleItem
 
 logger = logging.getLogger(__name__)
 
 async def node1_structure_analysis(state: PlannerGraphState) -> PlannerGraphState:
     """
-    Node 1: Task Structure Analysis
-    - Analyzes flex tasks for category and cognitive load using LLM.
-    - STRICTLY enforces grouping based on parentScheduleId.
-    - Implements retry logic for structural mismatch (up to 4 times).
+    Node 1: 작업 구조 분석
+    - LLM을 활용하여 FLEX인 Task의 Category와 Cognitive Load를 분석
+    - parentScheduleId를 기반으로 그룹핑을 강제
+    - Structural mismatch에 대한 재시도 로직 구현 (최대 4회)
     """
-    flex_tasks = state.flexTasks
+    flex_tasks: List[ScheduleItem] = state.flexTasks # FLEX인 Task 리스트
     
-    # 1. Prepare Inputs
+    # 1. 입력 준비
     client = get_gemini_client()
     formatted_tasks = format_tasks_for_llm(flex_tasks)
     
-    # Map taskId to original task for easy access
+    # taskId와 original task를 매핑
     task_map = {t.taskId: t for t in flex_tasks}
     
-    # Retry Loop
+    # 반복 루프
+    ## 현재 gemini만 사용해서 4회 반복을 지정함
+    ### 추후 다른 LLM을 사용할 경우, 이 부분을 수정할 필요가 있음
     max_retries = 4
     current_retry = state.retry_node1
-    
-    # If we already exceeded retries (from previous graph cycles if any), default immediately?
-    # But here we assume this is a fresh entry or a loop. Let's handle local retries here or rely on recursion?
-    # LangGraph nodes usually run once. If we want retries, we can loop inside here or return a state that points back to Node1.
-    # Given the user requirement "retry 4 times", internal loop is safer for simple robust logic without complex graph cycles for now.
     
     parsed_result = None
     validation_error = None
     
     for attempt in range(max_retries + 1):
         try:
-            logger.info(f"Node 1 Analysis Attempt {attempt + 1}/{max_retries + 1}")
+            logger.info(f"Node 1 작업 구조 분석 시도 {attempt + 1}/{max_retries + 1}")
             
-            # Call LLM
+            # LLM 호출
             response_json = await client.generate(
                 system=NODE1_SYSTEM_PROMPT,
                 user=formatted_tasks
             )
             
-            # Basic Validation: Is it a dict with "tasks"?
+            # JSON 형식의 응답을 받았는지 확인
             if not isinstance(response_json, dict) or "tasks" not in response_json:
                 raise ValueError("Invalid JSON format: missing 'tasks' key")
                 
-            # Structural Validation (Grouping Mismatch Check)
-            # User Rule: "같은 taskId의 parentScheduleId로 덮어써야해" -> But retry first if mismatch.
+            # 응답된 데이터를 처리
             for item in response_json.get("tasks", []):
                 t_id = item.get("taskId")
+                # 보내준 목록이 실존하는 작업 아이디인지 확인
                 if t_id not in task_map:
+                    logger.warning(f"AI가 목록에 없는 taskId {t_id}를 반환했습니다.")
                     continue
-                    
-                # Check Grouping
-                # LLM output usually doesn't output groupId directly based on my prompt (it outputs grouping context contextually?)
-                # Wait, my prompt says: "물리적인 그룹핑은 시스템이 parentScheduleId를 기반으로 확정합니다... groupLabel을 제안하는 역할만 수행합니다."
-                # So LLM is NOT expected to output groupId.
-                # Ah, the prompt output schema example:
-                # { "taskId": 123, "category": "학업", "cognitiveLoad": "HIGH", "reason": "..." }
-                # It does NOT ask for groupId.
-                # So... the "grouping mismatch" effectively means:
-                # Did I misunderstand the user requirement? 
-                # "LLM의 반환한 groupId가 입력된 parentScheduleId와 다를 경우..."
-                # If my prompt DOES NOT ask for groupId, then LLM won't return it, so no mismatch.
-                # BUT, the user's comment implies they EXPECT the LLM to return something about groups?
-                # "LLM의 자율 그룹핑을 허용하지 않는다" -> OK, so I shouldn't ask for it.
-                # But then the user said "Retry if mismatch".
-                # Perhaps the user implies: If I WERE asking for groupId, it must match.
-                # Or maybe I should ask for it to verify understanding?
-                # Given strict instruction "Don't invent groups", asking for it might just confuse LLM.
-                # Let's stick to the prompt that explicitly says "System determines grouping".
-                # So we ONLY need the LLM to give Category and CogLoad.
-                # The "Grouping" part of the prompt is context for the LLM to understand context.
-                
-                # Wait, if I don't ask for groupId, I can't check mismatch.
-                # Effectively, I am enforcing it by NOT asking.
-                # Is that compliant?
-                # User said: "같은 taskId의 parentScheduleId로 덮어써야해"
-                # This implies I might have *thought* about asking it.
-                # I will proceed with NOT asking for groupId in JSON, and strictly setting it in code.
-                # This satisfies "Absolute enforcement".
-                pass
-
+            
             parsed_result = response_json
-            break # Success
+            break # 성공: 시도 중단
 
         except Exception as e:
             validation_error = str(e)
             logger.warning(f"Node 1 Attempt {attempt + 1} failed: {validation_error}")
             continue
     
-    # 2. Process Results (Enforcement & Fallback)
-    task_features: Dict[int, TaskFeature] = {}
+    # 2. 결과 처리
+    task_features: Dict[int, TaskFeature] = {} # 각 작업에 대한 feature를 저장
     
-    # If LLM completely failed after retries
+    # 4번의 재시도가 전부 실패했을 경우
     if not parsed_result:
         logger.error(f"Node 1 failed after {max_retries + 1} attempts. Using Fallback.")
-        # Fallback Logic
+        # Fallback 로직 적용
+        ## 자동으로 fallback feature를 생성
         for task in flex_tasks:
-            task_features[task.taskId] = _create_fallback_feature(task)
+            task_features[task.taskId] = _create_fallback_feature(task) #아래에 정의
             
-        # Update retry count in state to reflect failure intensity
-        return state.model_copy(update={
+        # fallback feature를 생성한 후, state 업데이트
+        return state.model_copy(update={ # model_copy는 state의 일부만 업데이트
             "taskFeatures": task_features,
             "retry_node1": max_retries + 1,
             "warnings": state.warnings + [f"Node 1 Fallback triggered: {validation_error}"]
         })
 
-    # If LLM succeeded (partially or fully), parse items
+    # LLM이 성공했을 경우
     llm_items = {item["taskId"]: item for item in parsed_result.get("tasks", [])}
     
     for task in flex_tasks:
         llm_item = llm_items.get(task.taskId)
         
         if llm_item:
-            # Normal processing
+            # 정상 처리
             category = llm_item.get("category", "기타")
             cog_load = llm_item.get("cognitiveLoad", "MED")
             order_in_group = llm_item.get("orderInGroup")
             
-            # Map valid values only
+            # 유효한 값만 매핑
             if category not in ["학업", "업무", "운동", "취미", "생활", "기타", "ERROR"]:
                 category = "기타"
             if cog_load not in ["LOW", "MED", "HIGH"]:
                 cog_load = "MED"
                 
+            # state에 저장할 feature 생성
             feature = TaskFeature(
                 taskId=task.taskId,
                 dayPlanId=task.dayPlanId,
@@ -138,47 +108,39 @@ async def node1_structure_analysis(state: PlannerGraphState) -> PlannerGraphStat
                 type=task.type,
                 category=category,
                 cognitiveLoad=cog_load,
-                # STRICT GROUPING: Always use parentScheduleId
+                # 그룹핑: 항상 parentScheduleId 사용
                 groupId=str(task.parentScheduleId) if task.parentScheduleId else None,
-                groupLabel=None, # To be filled by system if group exists
+                groupLabel=None, # 그룹이 존재할 경우 system이 채워넣음 (LLM이 아님)
                 orderInGroup=order_in_group, 
-                
-                # Default numeric fields (will be updated by Node 2)
-                importanceScore=0.0,
-                fatigueCost=0.0,
-                durationAvgMin=0,
-                durationPlanMin=0,
-                durationMinChunk=0,
-                durationMaxChunk=0,
-                combined_embedding_text=""
             )
             
-            # Add Group Label context if exists (from parent title)
+            # 그룹이 존재할 경우 groupLabel 채우기
             if task.parentScheduleId:
-                # Resolve groupLabel by looking up parent task in request.schedules (all tasks)
-                # Since state.request.schedules contains ALL tasks (FIXED+FLEX before splitting?)
-                # Actually state.fixedTasks and state.flexTasks are derived from it.
-                # Let's search in state.request.schedules for O(N) lookup.
-                # Optimization: create a map once? But N is small.
                 parent_task = next((t for t in state.request.schedules if t.taskId == task.parentScheduleId), None)
                 if parent_task:
                     feature.groupLabel = parent_task.title
             
+            # 각각의 작업에 대한 feature를 통합 저장
             task_features[task.taskId] = feature
+
         else:
-            # Missing in LLM response -> Fallback for this specific task
+            # LLM이 실패한 경우 fallback feature를 생성
             task_features[task.taskId] = _create_fallback_feature(task)
 
-    # 3. Return State
+    # 3. state 업데이트
     return state.model_copy(update={
         "taskFeatures": task_features,
-        "retry_node1": attempt # Record how many retries were used
+        "retry_node1": attempt # 재시도 횟수 업데이트
     })
 
-def _create_fallback_feature(task) -> TaskFeature:
-    """Creates a default feature when LLM fails."""
-    # Infer CogLoad from duration
-    est = task.estimatedTimeRange
+def _create_fallback_feature(task: ScheduleItem) -> TaskFeature:
+    """
+    LLM이 실패한 경우 fallback feature를 생성
+    """
+    # 추정 시간을 기반으로 cognitive load를 추정
+    est: Optional[EstimatedTimeRange] = task.estimatedTimeRange
+    cog: Literal["LOW", "MED", "HIGH"]
+    
     if est == "MINUTE_UNDER_30":
         cog = "LOW"
     elif est == "MINUTE_30_TO_60":
@@ -193,13 +155,5 @@ def _create_fallback_feature(task) -> TaskFeature:
         type=task.type,
         category="기타",
         cognitiveLoad=cog,
-        groupId=str(task.parentScheduleId) if task.parentScheduleId else None,
-        combined_embedding_text="",
-        # Defaults
-        importanceScore=0.0,
-        fatigueCost=0.0,
-        durationAvgMin=0,
-        durationPlanMin=0,
-        durationMinChunk=0,
-        durationMaxChunk=0
+        groupId=str(task.parentScheduleId) if task.parentScheduleId else None
     )

@@ -28,4 +28,3 @@ class ArrangementState(BaseModel):
     user: UserInfo
     startArrange: str
     schedules: List[ScheduleItem]
-    schedules: List[ScheduleItem]

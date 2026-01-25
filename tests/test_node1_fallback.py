@@ -1,10 +1,31 @@
 import unittest
 from unittest.mock import MagicMock, patch, AsyncMock
 import logging
+import sys
+import os
+import unicodedata
 from app.services.planner.nodes.node1_structure import node1_structure_analysis
 from app.models.planner.internal import PlannerGraphState
 from app.models.planner.request import ArrangementState
 from app.models.planner.weights import WeightParams
+
+# Ensure project root is in path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+def get_display_width(text: str) -> int:
+    """한글(CJK) 문자를 포함한 문자열의 실제 터미널 출력 폭 계산"""
+    width = 0
+    for char in text:
+        if unicodedata.east_asian_width(char) in ('F', 'W', 'A'):
+            width += 2
+        else:
+            width += 1
+    return width
+
+def pad_text(text: str, length: int) -> str:
+    """한글 폭을 고려하여 공백 패딩"""
+    current_width = get_display_width(text)
+    return text + ' ' * max(0, length - current_width)
 
 class TestNode1Fallback(unittest.IsolatedAsyncioTestCase):
     
@@ -82,13 +103,27 @@ class TestNode1Fallback(unittest.IsolatedAsyncioTestCase):
         features = new_state.taskFeatures
         
         print(f"\n[Fallback Execution Result] Total Features: {len(features)}")
-        print("-" * 50)
-        print(f"{'ID':<5} | {'Title':<15} | {'Category':<8} | {'CogLoad':<6}")
-        print("-" * 50)
+        separator = "-" * 85
+        print(separator)
+        header = (
+            pad_text("ID", 5) + " | " +
+            pad_text("Title", 40) + " | " +
+            pad_text("Category", 10) + " | " +
+            pad_text("CogLoad", 8)
+        )
+        print(header)
+        print(separator)
         
         for tid, feature in features.items():
-            print(f"{tid:<5} | {feature.title:<15} | {feature.category:<8} | {feature.cognitiveLoad:<6}")
-        print("-" * 50)
+            title_short = (feature.title[:18] + '..') if len(feature.title) > 20 else feature.title
+            row = (
+                pad_text(str(tid), 5) + " | " +
+                pad_text(title_short, 40) + " | " +
+                pad_text(feature.category, 10) + " | " +
+                pad_text(feature.cognitiveLoad, 8)
+            )
+            print(row)
+        print(separator)
 
         # 검증 1: 재시도 횟수 확인 (초기 1회 + 재시도 4회 = 총 5회)
         self.assertEqual(mock_client.generate.call_count, 5)

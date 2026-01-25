@@ -1,4 +1,5 @@
 from typing import List, Dict, Any, Optional
+from app.models.planner.request import ScheduleItem
 
 NODE1_SYSTEM_PROMPT = """
 당신은 일정 관리 플래너의 작업(Task)을 분석하여 구조화하는 전문가입니다.
@@ -40,15 +41,18 @@ NODE1_SYSTEM_PROMPT = """
    ```
 """
 
-def format_tasks_for_llm(flex_tasks: List[Any]) -> str:
-    """LLM 입력용 작업 목록 포맷팅"""
+def format_tasks_for_llm(flex_tasks: List[ScheduleItem]) -> str:
+    """
+      LLM 입력용 작업 목록 포맷팅
+      필요한 정보만 추출하여 입력
+   """
     task_lines = []
     for task in flex_tasks:
-        line = f"- TaskID: {task.taskId} | Title: {task.title}"
+        line = f"- TaskID: {task.taskId} | Title: {task.title}" # TaskID와 Title
         if task.estimatedTimeRange:
-             line += f" | Est: {task.estimatedTimeRange}"
+             line += f" | Est: {task.estimatedTimeRange}" # 예상 시간
         if task.parentScheduleId:
-             line += f" | ParentID: {task.parentScheduleId}"
+             line += f" | ParentID: {task.parentScheduleId}" # 부모 작업 ID
         task_lines.append(line)
     
     return "\n".join(task_lines)
