@@ -10,19 +10,16 @@ logger = logging.getLogger(__name__)
 class GeminiClient:
     def __init__(self):
         if not settings.gemini_api_key:
-            raise ValueError("GEMINI_API_KEY is not set in environment or config.")
+            raise ValueError("GEMINI_API_KEY가 등록되지 않았습니다.")
         
-        # Initialize Google GenAI Client
+        # Gemini Client 초기화
         self.client = genai.Client(api_key=settings.gemini_api_key)
-        # Model Name (Fixed as per requirement)
-        self.model_name = "gemini-3-flash-preview" # Assuming this is available, if not usually 'gemini-1.5-flash' etc. 
-        # Wait, user specified "gemini-2.5-flash-lite". I will use that. 
-        # Note: If 2.5 is not yet public in the lib, this might fail, but I must follow instructions.
+        # 사용할 Gemini 모델 지정
+        self.model_name = "gemini-2.5-flash-lite"
         
     async def generate(self, system: str, user: str) -> Dict[str, Any]:
         """
-        Generates content using Gemini and returns parsed JSON.
-        Handles API errors gracefully (re-raises or returns None).
+        Gemini API를 호출하여 JSON 응답을 반환
         """
         try:
             response = self.client.models.generate_content(
@@ -36,7 +33,7 @@ class GeminiClient:
                 config=types.GenerateContentConfig(
                     system_instruction=system,
                     response_mime_type="application/json",
-                    temperature=0.1, # Low temperature for deterministic structural output
+                    temperature=0.1,
                 )
             )
             

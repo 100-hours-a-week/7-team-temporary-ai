@@ -31,6 +31,7 @@ class TaskFeature(BaseModel):
     durationPlanMin: int = 0
     durationMinChunk: int = 0
     durationMaxChunk: int = 0
+    combined_embedding_text: str = ""
 
 class ChainCandidate(BaseModel):
     chainId: str

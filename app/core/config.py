@@ -4,21 +4,22 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # App
-    app_name: str = "MOLIP-AI-Planner"
-    debug: bool = True
-    host: str = "0.0.0.0"
-    port: int = 8000
-    environment: str = "development"
+    app_name: str = "MOLIP-AI-Planner" # 애플리케이션 이름
+    debug: bool = True # 개발 모드
+    host: str = "0.0.0.0" # 서버 호스트
+    port: int = 8000 # 서버 포트
+    environment: str = "development" # 환경
 
     # Backend
-    backend_url: str = "https://stg.molip.today"
+    backend_url: str = "https://stg.molip.today" # 백엔드 URL
 
     # CORS
-    cors_origins: List[str] = ["*"]
+    cors_origins: List[str] = ["*"] # 모든 도메인 접근 허용
     
     # Logging
-    log_level: str = "INFO"
+    log_level: str = "INFO" # 로그의 상세 수준
 
+    # 환경 변수에서 콤마로 구분된 문자열이 들어오면 파이썬 리스트 형태로 변환
     @field_validator("cors_origins", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
@@ -27,23 +28,16 @@ class Settings(BaseSettings):
         return v
 
     # API Keys
-    gemini_api_key: Optional[str] = None
+    gemini_api_key: Optional[str] = None # Gemini API 키
     
     # Supabase
-    supabase_url: Optional[str] = None
-    supabase_key: Optional[str] = None
+    supabase_url: Optional[str] = None # Supabase URL
+    supabase_key: Optional[str] = None # Supabase API 키
 
     class Config:
-        env_file = ".env"
-        case_sensitive = False
-        extra = "ignore"
-        # Map env vars to fields if names differ
-        # (Assuming standard names match, but for ALLOWED_ORIGINS -> cors_origins we might need alias if stricter)
-        # But here I'll just rely on loose matching or add alias if needed.
-        # Actually, let's add the alias to be safe given .env.example has ALLOWED_ORIGINS
-    
-    # Redefine cors_origins with alias if pydantic supports it easily in BaseSettings
-    # Or just use ValidationAlias in newer Pydantic.
-    # checking requirements.txt: pydantic==2.12.5. Good.
+        env_file = ".env" # 환경 변수 파일
+        case_sensitive = False # 대소문자 구분 하지 않음
+        extra = "ignore" # Settings 클래스에 정의되지 않은 환경 변수가 있더라고 에러를 내지 않음
 
+#인스턴스 생성
 settings = Settings()
