@@ -30,6 +30,37 @@
    - **부하 분산**: 재시도 시 고정 시간이 아닌 점진적으로 대기 시간을 늘려 (`1초` → `2초` → `4초` → `8초`) 서버 과부하 상태에서 회복할 시간을 확보.
    - **Node 1 & Node 3 적용**: `asyncio.sleep`을 활용하여 비동기 적으로 대기하도록 구현.
 
+
+### Node 4 (Chain Judgement) 구현
+
+**목적**: LLM이 생성한 여러 체인 후보 중 **수학적 최적해**를 선택하는 Node 4를 구현함. 현실성(Overflow)과 논리적 완결성(Closure)을 보장하는 정교한 점수 산정 로직 적용.
+
+#### 주요 변경 사항
+
+1. **[app/services/planner/nodes/node4_chain_judgement.py](app/services/planner/nodes/node4_chain_judgement.py)** (신규)
+   - **Closure 강제**: 그룹 작업의 순서(`orderInGroup`)를 엄격히 검사하여, 선행 작업이 없는 후행 작업을 체인에서 자동 제거.
+   - **Overflow Penalty**: 시간대별 가용량의 120%까지는 "안전 구간(Safe Buffer)"으로 보아 미세 페널티 부여, 그 이상은 기하급수적($O^2$) 페널티를 부여하여 현실성 없는 계획 차단.
+   - **Comprehensive Scoring**: 단순 포함/제외 점수뿐만 아니라 피로도 위험(`Fatigue Risk`), 집중 시간대 정렬(`Focus Align`) 보너스 등을 종합 반영.
+
+2. **[tests/test_node4.py](tests/test_node4.py)** (신규)
+   - **단위 테스트**: Closure 강제 로직, Overflow 페널티 함수, 최종 체인 선택 로직에 대한 검증 코드 작성 (3/3 pass).
+
+3. **[tests/test_integration_node1_to_node4.py](tests/test_integration_node1_to_node4.py)** (신규)
+   - **통합 테스트**: Node 1(구조) -> Node 2(중요도) -> Node 3(체인생성) -> Node 4(체인평가)로 이어지는 전체 파이프라인 검증 및 최적 체인 선택 확인.
+
+### LLM 파이프라인 관측성 (Observability) 강화 - Logfire 도입
+
+**목적**: 복잡한 LangGraph 파이프라인의 실행 흐름과 데이터 변화(State Transition)를 시각적으로 추적하기 위해 **[Logfire](https://logfire.pydantic.dev)**를 도입함.
+
+#### 주요 변경 사항
+
+1. **[app/services/planner/nodes/node1_structure.py](app/services/planner/nodes/node1_structure.py)**
+   - **Instrumentation**: `node1_structure_analysis` 함수에 `@logfire.instrument` 데코레이터를 적용하여 입력(State)과 출력(Updated State)을 자동 추적.
+
+2. **[tests/test_node1.py](tests/test_node1.py)**
+   - **Logfire 적용**: 테스트 실행 시 Logfire를 초기화하고, `with logfire.span(...)`을 통해 테스트 실행 구간을 명시적으로 기록.
+   - **환경 개선**: `sys.path.append` 로직을 최상단으로 이동하여 모듈 import 오류 해결.
+
 ---
 
 ## 2026-01-25

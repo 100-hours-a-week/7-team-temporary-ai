@@ -5,18 +5,24 @@ import asyncio
 import os
 import sys
 import unicodedata
+import logfire  # [Logfire] Import
+
+# Ensure project root is in path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from app.services.planner.nodes.node1_structure import node1_structure_analysis
 from app.models.planner.internal import PlannerGraphState
 from app.models.planner.request import ArrangementState
 from app.models.planner.weights import WeightParams
 from app.core.config import settings
 
+# [Logfire] Configure
+logfire.configure(send_to_logfire='if-token-present')
+logfire.instrument_pydantic()  # Validate Pydantic models with Logfire
+
 # Configure logging to show output
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Ensure project root is in path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def get_display_width(text: str) -> int:
     """한글(CJK) 문자를 포함한 문자열의 실제 터미널 출력 폭 계산"""
@@ -60,43 +66,45 @@ class TestNode1Structure(unittest.IsolatedAsyncioTestCase):
 
     async def test_real_llm_execution(self):
         print("\n\n>>> Node 1 테스트 진행 <<<")
-        try:
-            new_state = await node1_structure_analysis(self.state)
-            features = new_state.taskFeatures
+        # [Logfire] Wrap test execution
+        with logfire.span("tests/test_node1.py"):
+            try:
+                new_state = await node1_structure_analysis(self.state)
+                features = new_state.taskFeatures
             
-            print(f"\n Node 1 생성 결과 : 총 피쳐 수 {len(features)}개")
-            separator = "-" * 105
-            print(separator)
-            header = (
-                pad_text("ID", 5) + " | " +
-                pad_text("Title", 40) + " | " +
-                pad_text("Category", 10) + " | " +
-                pad_text("CogLoad", 8) + " | " +
-                pad_text("Group", 10) + " | " +
-                pad_text("Order", 5)
-            )
-            print(header)
-            print(separator)
-            
-            for tid, feature in features.items():
-                title_short = (feature.title[:18] + '..') if len(feature.title) > 20 else feature.title
-                grp = feature.groupId if feature.groupId else "-"
-                order = str(feature.orderInGroup) if feature.orderInGroup else "-"
-                
-                row = (
-                    pad_text(str(tid), 5) + " | " +
-                    pad_text(title_short, 40) + " | " +
-                    pad_text(feature.category, 10) + " | " +
-                    pad_text(feature.cognitiveLoad, 8) + " | " +
-                    pad_text(grp, 10) + " | " +
-                    pad_text(order, 5)
+                print(f"\n Node 1 생성 결과 : 총 피쳐 수 {len(features)}개")
+                separator = "-" * 105
+                print(separator)
+                header = (
+                    pad_text("ID", 5) + " | " +
+                    pad_text("Title", 40) + " | " +
+                    pad_text("Category", 10) + " | " +
+                    pad_text("CogLoad", 8) + " | " +
+                    pad_text("Group", 10) + " | " +
+                    pad_text("Order", 5)
                 )
-                print(row)
-            print(separator)
+                print(header)
+                print(separator)
+                
+                for tid, feature in features.items():
+                    title_short = (feature.title[:18] + '..') if len(feature.title) > 20 else feature.title
+                    grp = feature.groupId if feature.groupId else "-"
+                    order = str(feature.orderInGroup) if feature.orderInGroup else "-"
+                    
+                    row = (
+                        pad_text(str(tid), 5) + " | " +
+                        pad_text(title_short, 40) + " | " +
+                        pad_text(feature.category, 10) + " | " +
+                        pad_text(feature.cognitiveLoad, 8) + " | " +
+                        pad_text(grp, 10) + " | " +
+                        pad_text(order, 5)
+                    )
+                    print(row)
+                print(separator)
 
-        except Exception as e:
-             print(f"Node 1 테스트 실패 : {e}")
-             raise e
+            except Exception as e:
+                 print(f"Node 1 테스트 실패 : {e}")
+                 raise e
 
 if __name__ == '__main__':
     unittest.main()
