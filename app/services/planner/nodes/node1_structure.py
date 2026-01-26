@@ -1,5 +1,6 @@
 import json
 import logging
+import asyncio
 from typing import List, Dict, Any, Optional, Literal
 
 from app.models.planner.internal import TaskFeature, PlannerGraphState
@@ -81,6 +82,12 @@ async def node1_structure_analysis(state: PlannerGraphState) -> PlannerGraphStat
             if not is_retryable:
                 logger.error(f"Node 1: Non-retryable error encountered ({error_code.value}). Stopping retries.")
                 break # 재시도 불가능한 에러는 즉시 중단
+            
+            # 지수 백오프 적용 (Exponential Backoff)
+            if attempt < max_retries:
+                delay = 1.0 * (2 ** attempt)  # 1s, 2s, 4s, 8s...
+                logger.info(f"Node 1: Retrying in {delay} seconds... (Attempt {attempt + 1}/{max_retries})")
+                await asyncio.sleep(delay)
             
             continue
     
