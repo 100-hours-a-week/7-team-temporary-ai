@@ -1,6 +1,8 @@
+
 import json
 import logging
 import asyncio
+import logfire  # [Logfire] Import
 from typing import List, Dict, Any, Optional, Literal
 
 from app.models.planner.internal import TaskFeature, PlannerGraphState
@@ -11,6 +13,7 @@ from app.models.planner.errors import map_exception_to_error_code, is_retryable_
 
 logger = logging.getLogger(__name__)
 
+@logfire.instrument  # [Logfire] Instrument
 async def node1_structure_analysis(state: PlannerGraphState) -> PlannerGraphState:
     """
     Node 1: 작업 구조 분석
