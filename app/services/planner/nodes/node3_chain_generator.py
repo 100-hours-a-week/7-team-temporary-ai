@@ -1,6 +1,7 @@
 import json
 import logging
 import asyncio
+import logfire  # [Logfire] Import
 from typing import List, Dict, Any
 
 from app.models.planner.internal import PlannerGraphState, ChainCandidate
@@ -11,6 +12,7 @@ from app.models.planner.errors import map_exception_to_error_code, is_retryable_
 
 logger = logging.getLogger(__name__)
 
+@logfire.instrument  # [Logfire] Instrument
 async def node3_chain_generator(state: PlannerGraphState) -> PlannerGraphState:
     """
     Node 3: 작업 체인 생성 (Task Chain Generator)
@@ -128,10 +130,15 @@ async def node3_chain_generator(state: PlannerGraphState) -> PlannerGraphState:
         candidates_result = [_create_fallback_chain(state)]
     
     # 4. State 업데이트
-    return state.model_copy(update={
+    result_state = state.model_copy(update={
         "chainCandidates": candidates_result,
         "retry_node3": state.retry_node3 # 재시도 횟수 등은 필요 시 증가
     })
+    
+    # [Logfire] 결과 명시적 기록
+    logfire.info("Node 3 Result", result=result_state)
+    
+    return result_state
 
 def _create_fallback_chain(state: PlannerGraphState) -> ChainCandidate:
     """

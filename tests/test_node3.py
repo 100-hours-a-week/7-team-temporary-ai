@@ -1,5 +1,16 @@
 import unittest
 import asyncio
+import os
+import sys
+import logfire  # [Logfire] Import
+
+# [Logfire] Configure
+logfire.configure(send_to_logfire='if-token-present')
+logfire.instrument_pydantic()
+
+# Ensure project root is in path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from app.services.planner.nodes.node3_chain_generator import node3_chain_generator
 from app.services.planner.utils.session_utils import calculate_capacity
 from app.models.planner.internal import PlannerGraphState, TaskFeature, FreeSession
@@ -69,6 +80,7 @@ class TestNode3(unittest.IsolatedAsyncioTestCase):
             FreeSession(start=540, end=720, duration=180, timeZoneProfile={"MORNING": 180}), # 09:00~12:00
             FreeSession(start=720, end=1080, duration=360, timeZoneProfile={"AFTERNOON": 360}), # 12:00~18:00
             FreeSession(start=1080, end=1260, duration=180, timeZoneProfile={"EVENING": 180}), # 18:00~21:00
+            FreeSession(start=1260, end=1380, duration=120, timeZoneProfile={"NIGHT": 120}),   # 21:00~23:00 (추가됨)
         ]
         
         state = PlannerGraphState(
@@ -80,7 +92,9 @@ class TestNode3(unittest.IsolatedAsyncioTestCase):
         )
         
         # 실행
-        new_state = await node3_chain_generator(state)
+        # [Logfire] Wrap test execution
+        with logfire.span("tests/test_node3.py"):
+            new_state = await node3_chain_generator(state)
         
         # 검증
         candidates = new_state.chainCandidates

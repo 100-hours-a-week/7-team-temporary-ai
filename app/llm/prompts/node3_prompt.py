@@ -1,4 +1,5 @@
 import json
+import logfire  # [Logfire] Import
 from typing import List, Dict, Any
 from app.models.planner.internal import TaskFeature
 
@@ -102,5 +103,8 @@ def format_node3_input(
         "fixedSchedules": fixed_list,
         "tasks": tasks_list
     }
+    
+    # [Logfire] LLM 입력 데이터 로깅 (Capacity 확인용)
+    logfire.info("Node 3 Input Data", input=user_input)
 
     return json.dumps(user_input, ensure_ascii=False, indent=2)

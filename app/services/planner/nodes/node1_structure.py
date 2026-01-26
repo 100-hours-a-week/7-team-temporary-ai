@@ -27,6 +27,9 @@ async def node1_structure_analysis(state: PlannerGraphState) -> PlannerGraphStat
     client = get_gemini_client()
     formatted_tasks = format_tasks_for_llm(flex_tasks)
     
+    # [Logfire] LLM 입력 데이터 로깅
+    logfire.info("Node 1 Input Data", input=formatted_tasks)
+    
     # taskId와 original task를 매핑
     task_map = {t.taskId: t for t in flex_tasks}
     
@@ -158,10 +161,15 @@ async def node1_structure_analysis(state: PlannerGraphState) -> PlannerGraphStat
             task_features[task.taskId] = _create_fallback_feature(task)
 
     # 3. state 업데이트
-    return state.model_copy(update={
+    result_state = state.model_copy(update={
         "taskFeatures": task_features,
         "retry_node1": attempt # 재시도 횟수 업데이트
     })
+    
+    # [Logfire] 결과 명시적 기록
+    logfire.info("Node 1 Result", result=result_state)
+    
+    return result_state
 
 def _create_fallback_feature(task: ScheduleItem) -> TaskFeature:
     """

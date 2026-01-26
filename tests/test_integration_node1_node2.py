@@ -2,7 +2,17 @@ import unittest
 import json
 import asyncio
 import os
+import sys
 import unicodedata
+import logfire  # [Logfire] Import
+
+# [Logfire] Configure
+logfire.configure(send_to_logfire='if-token-present')
+logfire.instrument_pydantic()
+
+# Ensure project root is in path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from app.services.planner.nodes.node1_structure import node1_structure_analysis
 from app.services.planner.nodes.node2_importance import node2_importance
 from app.models.planner.internal import PlannerGraphState
@@ -53,101 +63,104 @@ class TestIntegrationNode1ToNode2(unittest.IsolatedAsyncioTestCase):
     async def test_pipeline_flow(self):
         print("\n\n>>> 통합 테스트 진행: Node 1 -> Node 2 <<<")
         
-        # -------------------------------------------------------------
-        # 1. Run Node 1 (Structure Analysis - LLM)
-        # -------------------------------------------------------------
-        print("\n" + "=" * 105)
-        print(" [Step 1] Running Node 1: Structure Analysis (LLM)")
-        print("=" * 105)
+        # [Logfire] Wrap test execution
+        with logfire.span("tests/test_integration_node1_node2.py"):
         
-        state_after_node1 = await node1_structure_analysis(self.state)
-        f_n1 = state_after_node1.taskFeatures
-        
-        print(f"\n[Node 1 결과] 총 피쳐 수: {len(f_n1)}")
-        separator = "-" * 105
-        print(separator)
-        header_n1 = (
-            pad_text("ID", 5) + " | " +
-            pad_text("Title", 40) + " | " +
-            pad_text("Category", 12) + " | " +
-            pad_text("CogLoad", 10) + " | " +
-            pad_text("GroupId", 10)
-        )
-        print(header_n1)
-        print(separator)
-        
-        for tid in sorted(f_n1.keys()):
-            f = f_n1[tid]
-            title_short = (f.title[:18] + '..') if len(f.title) > 20 else f.title
-            grp = f.groupId if f.groupId else "-"
+            # -------------------------------------------------------------
+            # 1. Run Node 1 (Structure Analysis - LLM)
+            # -------------------------------------------------------------
+            print("\n" + "=" * 105)
+            print(" [Step 1] Running Node 1: Structure Analysis (LLM)")
+            print("=" * 105)
             
-            row = (
-                pad_text(str(tid), 5) + " | " +
-                pad_text(title_short, 40) + " | " +
-                pad_text(f.category, 12) + " | " +
-                pad_text(f.cognitiveLoad or "-", 10) + " | " +
-                pad_text(grp, 10)
-            )
-            print(row)
-        print(separator)
-
-        # -------------------------------------------------------------
-        # 2. Run Node 2 (Importance & Filtering - Logic)
-        # -------------------------------------------------------------
-        print("\n" + "=" * 105)
-        print(" [Step 2] Running Node 2: Importance & Filtering (Logic)")
-        print("=" * 105)
-        
-        state_after_node2 = node2_importance(state_after_node1)
-        f_n2 = state_after_node2.taskFeatures
-        
-        print(f"\n[Node 2 결과] 총 피쳐 수 (필터링 후): {len(f_n2)}")
-        print(separator)
-        header_n2 = (
-            pad_text("ID", 5) + " | " +
-            pad_text("Title", 40) + " | " +
-            pad_text("ImpScore", 12) + " | " +
-            pad_text("Fatigue", 12) + " | " +
-            pad_text("PlanMin", 10)
-        )
-        print(header_n2)
-        print(separator)
-        
-        for tid in sorted(f_n2.keys()):
-            f = f_n2[tid]
-            title_short = (f.title[:18] + '..') if len(f.title) > 20 else f.title
-            imp = f"{f.importanceScore:.1f}"
-            fatigue = f"{f.fatigueCost:.1f}"
-            plan = str(f.durationPlanMin)
+            state_after_node1 = await node1_structure_analysis(self.state)
+            f_n1 = state_after_node1.taskFeatures
             
-            row = (
-                pad_text(str(tid), 5) + " | " +
-                pad_text(title_short, 40) + " | " +
-                pad_text(imp, 12) + " | " +
-                pad_text(fatigue, 12) + " | " +
-                pad_text(plan, 10)
+            print(f"\n[Node 1 결과] 총 피쳐 수: {len(f_n1)}")
+            separator = "-" * 105
+            print(separator)
+            header_n1 = (
+                pad_text("ID", 5) + " | " +
+                pad_text("Title", 40) + " | " +
+                pad_text("Category", 12) + " | " +
+                pad_text("CogLoad", 10) + " | " +
+                pad_text("GroupId", 10)
             )
-            print(row)
-        print(separator)
-        
-        # -------------------------------------------------------------
-        # 3. Assertions (Logic Verification)
-        # -------------------------------------------------------------
-        
-        # Check ERROR Filtering
-        tasks_in_n1 = set(f_n1.keys())
-        tasks_in_n2 = set(f_n2.keys())
-        dropped_tasks = tasks_in_n1 - tasks_in_n2
-        
-        if dropped_tasks:
-            print(f"\n[Summary] Dropped Tasks (ERROR): {list(dropped_tasks)}")
-        
-        for dropped_id in dropped_tasks:
-             cat = f_n1[dropped_id].category
-             self.assertEqual(cat, "ERROR")
+            print(header_n1)
+            print(separator)
+            
+            for tid in sorted(f_n1.keys()):
+                f = f_n1[tid]
+                title_short = (f.title[:18] + '..') if len(f.title) > 20 else f.title
+                grp = f.groupId if f.groupId else "-"
+                
+                row = (
+                    pad_text(str(tid), 5) + " | " +
+                    pad_text(title_short, 40) + " | " +
+                    pad_text(f.category, 12) + " | " +
+                    pad_text(f.cognitiveLoad or "-", 10) + " | " +
+                    pad_text(grp, 10)
+                )
+                print(row)
+            print(separator)
 
-        self.assertIn(1, f_n2, "Task 1 (Valid) should exist in Node 2")
-        print("\n>>> 통합 테스트 완료 <<<")
+            # -------------------------------------------------------------
+            # 2. Run Node 2 (Importance & Filtering - Logic)
+            # -------------------------------------------------------------
+            print("\n" + "=" * 105)
+            print(" [Step 2] Running Node 2: Importance & Filtering (Logic)")
+            print("=" * 105)
+            
+            state_after_node2 = node2_importance(state_after_node1)
+            f_n2 = state_after_node2.taskFeatures
+            
+            print(f"\n[Node 2 결과] 총 피쳐 수 (필터링 후): {len(f_n2)}")
+            print(separator)
+            header_n2 = (
+                pad_text("ID", 5) + " | " +
+                pad_text("Title", 40) + " | " +
+                pad_text("ImpScore", 12) + " | " +
+                pad_text("Fatigue", 12) + " | " +
+                pad_text("PlanMin", 10)
+            )
+            print(header_n2)
+            print(separator)
+            
+            for tid in sorted(f_n2.keys()):
+                f = f_n2[tid]
+                title_short = (f.title[:18] + '..') if len(f.title) > 20 else f.title
+                imp = f"{f.importanceScore:.1f}"
+                fatigue = f"{f.fatigueCost:.1f}"
+                plan = str(f.durationPlanMin)
+                
+                row = (
+                    pad_text(str(tid), 5) + " | " +
+                    pad_text(title_short, 40) + " | " +
+                    pad_text(imp, 12) + " | " +
+                    pad_text(fatigue, 12) + " | " +
+                    pad_text(plan, 10)
+                )
+                print(row)
+            print(separator)
+            
+            # -------------------------------------------------------------
+            # 3. Assertions (Logic Verification)
+            # -------------------------------------------------------------
+            
+            # Check ERROR Filtering
+            tasks_in_n1 = set(f_n1.keys())
+            tasks_in_n2 = set(f_n2.keys())
+            dropped_tasks = tasks_in_n1 - tasks_in_n2
+            
+            if dropped_tasks:
+                print(f"\n[Summary] Dropped Tasks (ERROR): {list(dropped_tasks)}")
+            
+            for dropped_id in dropped_tasks:
+                    cat = f_n1[dropped_id].category
+                    self.assertEqual(cat, "ERROR")
+
+            self.assertIn(1, f_n2, "Task 1 (Valid) should exist in Node 2")
+            print("\n>>> 통합 테스트 완료 <<<")
 
 if __name__ == '__main__':
     unittest.main()

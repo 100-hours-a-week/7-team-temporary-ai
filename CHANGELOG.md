@@ -61,6 +61,20 @@
    - **Logfire 적용**: 테스트 실행 시 Logfire를 초기화하고, `with logfire.span(...)`을 통해 테스트 실행 구간을 명시적으로 기록.
    - **환경 개선**: `sys.path.append` 로직을 최상단으로 이동하여 모듈 import 오류 해결.
 
+3. **Node 2 (Importance) 관측성 적용**
+   - **[app/services/planner/nodes/node2_importance.py](app/services/planner/nodes/node2_importance.py)**: `node2_importance` 함수에 Instrumentation 적용.
+
+4. **Node 3 (Chain Generator) 관측성 적용**
+   - **[app/services/planner/nodes/node3_chain_generator.py](app/services/planner/nodes/node3_chain_generator.py)**: `node3_chain_generator` 함수에 Instrumentation 적용.
+
+5. **LLM 입출력 데이터 명시적 로깅 (Input/Result Logging)**
+   - **Node 1, 2, 3 적용**: `logfire.info("... Input Data", input=...)` 및 `logfire.info("... Result", result=...)`를 추가하여 대시보드에서 LLM 입력 프롬프트와 최종 상태값을 즉시 확인할 수 있도록 개선.
+
+6. **테스트 안정성 및 가용성 검증 강화**
+   - **[tests/test_node3.py](tests/test_node3.py)**: `NIGHT` 시간대(21:00~23:00) 가용 세션을 추가하여 야간 작업 배분 로직 검증.
+   - **[tests/test_integration_node1_to_node3.py](tests/test_integration_node1_to_node3.py)**: 하드코딩된 세션 대신 `calculate_free_sessions` 유틸리티를 사용하여 `test_request.json`의 설정값을 기반으로 FreeSession을 동적으로 계산하도록 리팩토링.
+   - **Logfire Span 추가**: `test_node3.py` 및 `test_integration_node1_to_node3.py`에 Logfire 관측 영역 추가.
+
 ---
 
 ## 2026-01-25
