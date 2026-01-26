@@ -202,6 +202,24 @@ python -m unittest tests/test_node3_fallback.py
 ```bash
 python -m unittest tests/test_integration_node1_to_node3.py
 ```
+
+### V1 - Node 4: 체인 평가 (Chain Judgement)
+1. `app/services/planner/nodes/node4_chain_judgement.py`
+    - Node 3에서 생성된 후보 체인 중 최적의 체인을 선택
+    - **Closure 강제**: 그룹 순서 위반 작업 제거
+    - **Overflow Penalty**: 시간대별 가용량 초과 시 페널티 부과
+    - **Scoring**: 포함/제외 효용, 피로도, 집중 시간대 정렬 등을 종합 평가
+2. `tests/test_node4.py`
+    - Node 4 로직 검증을 위한 단위 테스트
+```bash
+python -m unittest tests/test_node4.py
+```
+3. `tests/test_integration_node1_to_node4.py`
+    - Node 1 -> Node 2 -> Node 3 -> Node 4 파이프라인 통합 테스트
+```bash
+python -m unittest tests/test_integration_node1_to_node4.py
+```
+
 ---
 ## 참고 문서
 
