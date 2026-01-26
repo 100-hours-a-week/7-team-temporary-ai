@@ -26,6 +26,10 @@
 4. **[app/services/planner/nodes/node3_chain_generator.py](app/services/planner/nodes/node3_chain_generator.py)**
    - **전면 재시도**: Node 1과 동일하게 서버 에러 및 데이터 무결성 오류(할루시네이션, 빈 후보 등) 발생 시 전면 재시도 적용.
 
+5. **지수 백오프 (Exponential Backoff)**
+   - **부하 분산**: 재시도 시 고정 시간이 아닌 점진적으로 대기 시간을 늘려 (`1초` → `2초` → `4초` → `8초`) 서버 과부하 상태에서 회복할 시간을 확보.
+   - **Node 1 & Node 3 적용**: `asyncio.sleep`을 활용하여 비동기 적으로 대기하도록 구현.
+
 ---
 
 ## 2026-01-25

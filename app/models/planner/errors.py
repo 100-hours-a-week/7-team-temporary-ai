@@ -66,5 +66,7 @@ def is_retryable_error(error_code: PlannerErrorCode) -> bool:
         PlannerErrorCode.PLANNER_RESOURCE_EXHAUSTED,  # 429
         PlannerErrorCode.PLANNER_TIMEOUT,             # 504
         PlannerErrorCode.PLANNER_SERVER_ERROR,        # 500
+        PlannerErrorCode.PLANNER_BAD_REQUEST,         # 400 (LLM Validation Error)
+        PlannerErrorCode.PLANNER_INVALID_ARGUMENT,    # 400 (LLM Validation Error)
     }
     return error_code in retryable_codes
