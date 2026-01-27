@@ -77,11 +77,6 @@ ngrok.log
 server.log
 server.pid
 
-# ----------------------
-# 8. 테스트 데이터 (로컬 개발용)
-# ----------------------
-test_request.json
-test_request_extended.json
 
 
 
