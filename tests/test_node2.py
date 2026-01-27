@@ -1,11 +1,23 @@
 import unittest
 import json
 import os
+import sys
 import unicodedata
+import logfire  # [Logfire] Import
+
+# [Logfire] Configure
+logfire.configure(send_to_logfire='if-token-present')
+logfire.instrument_pydantic()
+
+# Ensure project root is in path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from app.services.planner.nodes.node2_importance import node2_importance
 from app.models.planner.internal import PlannerGraphState, TaskFeature
 from app.models.planner.request import ArrangementState, ScheduleItem
 from app.models.planner.weights import WeightParams
+
+
 
 def get_display_width(text: str) -> int:
     """한글(CJK) 문자를 포함한 문자열의 실제 터미널 출력 폭 계산"""
@@ -92,7 +104,9 @@ class TestNode2Importance(unittest.TestCase):
     def test_node2_structure_processing(self):
         print("\n\n>>> Node 2 테스트 진행 <<<")
         
-        new_state = node2_importance(self.state)
+        # [Logfire] Wrap test execution
+        with logfire.span("tests/test_node2.py"):
+            new_state = node2_importance(self.state)
         features = new_state.taskFeatures
         
         print(f"\n[Node 2 결과] 총 피쳐 진행수: {len(features)}")

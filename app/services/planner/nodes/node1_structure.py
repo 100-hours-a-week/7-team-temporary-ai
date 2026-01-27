@@ -1,14 +1,19 @@
+
 import json
 import logging
+import asyncio
+import logfire  # [Logfire] Import
 from typing import List, Dict, Any, Optional, Literal
 
 from app.models.planner.internal import TaskFeature, PlannerGraphState
 from app.llm.gemini_client import get_gemini_client
 from app.llm.prompts.node1_prompt import NODE1_SYSTEM_PROMPT, format_tasks_for_llm
 from app.models.planner.request import EstimatedTimeRange, ScheduleItem
+from app.models.planner.errors import map_exception_to_error_code, is_retryable_error
 
 logger = logging.getLogger(__name__)
 
+@logfire.instrument  # [Logfire] Instrument
 async def node1_structure_analysis(state: PlannerGraphState) -> PlannerGraphState:
     """
     Node 1: 작업 구조 분석
@@ -21,6 +26,9 @@ async def node1_structure_analysis(state: PlannerGraphState) -> PlannerGraphStat
     # 1. 입력 준비
     client = get_gemini_client()
     formatted_tasks = format_tasks_for_llm(flex_tasks)
+    
+    # [Logfire] LLM 입력 데이터 로깅
+    logfire.info("Node 1 Input Data", input=formatted_tasks)
     
     # taskId와 original task를 매핑
     task_map = {t.taskId: t for t in flex_tasks}
@@ -51,17 +59,42 @@ async def node1_structure_analysis(state: PlannerGraphState) -> PlannerGraphStat
             # 응답된 데이터를 처리
             for item in response_json.get("tasks", []):
                 t_id = item.get("taskId")
-                # 보내준 목록이 실존하는 작업 아이디인지 확인
+                # 1. 보내준 목록이 실존하는 작업 아이디인지 확인 (Hallucination Check)
                 if t_id not in task_map:
-                    logger.warning(f"AI가 목록에 없는 taskId {t_id}를 반환했습니다.")
-                    continue
-            
+                    raise ValueError(f"AI hallucinated invalid taskId: {t_id}")
+
+                # 2. Category 유효성 검사
+                cat = item.get("category", "")
+                if cat not in ["학업", "업무", "운동", "취미", "생활", "기타", "ERROR"]:
+                    raise ValueError(f"Invalid category: {cat}")
+                
+                # 3. Cognitive Load 유효성 검사
+                cog = item.get("cognitiveLoad", "")
+                if cog not in ["LOW", "MED", "HIGH"]:
+                    raise ValueError(f"Invalid cognitiveLoad: {cog}")
+
             parsed_result = response_json
             break # 성공: 시도 중단
 
         except Exception as e:
             validation_error = str(e)
-            logger.warning(f"Node 1 Attempt {attempt + 1} failed: {validation_error}")
+            
+            # 에러 매핑 및 재시도 여부 판단
+            error_code = map_exception_to_error_code(e)
+            is_retryable = is_retryable_error(error_code)
+            
+            logger.warning(f"Node 1 Attempt {attempt + 1} failed: {validation_error} (Code: {error_code.value})")
+            
+            if not is_retryable:
+                logger.error(f"Node 1: Non-retryable error encountered ({error_code.value}). Stopping retries.")
+                break # 재시도 불가능한 에러는 즉시 중단
+            
+            # 지수 백오프 적용 (Exponential Backoff)
+            if attempt < max_retries:
+                delay = 1.0 * (2 ** attempt)  # 1s, 2s, 4s, 8s...
+                logger.info(f"Node 1: Retrying in {delay} seconds... (Attempt {attempt + 1}/{max_retries})")
+                await asyncio.sleep(delay)
+            
             continue
     
     # 2. 결과 처리
@@ -128,10 +161,15 @@ async def node1_structure_analysis(state: PlannerGraphState) -> PlannerGraphStat
             task_features[task.taskId] = _create_fallback_feature(task)
 
     # 3. state 업데이트
-    return state.model_copy(update={
+    result_state = state.model_copy(update={
         "taskFeatures": task_features,
         "retry_node1": attempt # 재시도 횟수 업데이트
     })
+    
+    # [Logfire] 결과 명시적 기록
+    logfire.info("Node 1 Result", result=result_state)
+    
+    return result_state
 
 def _create_fallback_feature(task: ScheduleItem) -> TaskFeature:
     """

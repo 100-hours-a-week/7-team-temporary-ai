@@ -1,0 +1,96 @@
+{
+    "user": {
+        "userId": 123456789,
+        "gender": "MALE",
+        "age": 26,
+        "focusTimeZone": "EVENING",
+        "dayEndTime": "23:00"
+    },
+    "schedules": [
+        {
+            "taskId": 1,
+            "dayPlanId": 101,
+            "title": "팀 주간회의",
+            "status": "DONE",
+            "type": "FIXED",
+            "assignedBy": "USER",
+            "assignmentStatus": "ASSIGNED",
+            "startAt": "19:00",
+            "endAt": "20:00",
+            "estimatedTimeRange": null,
+            "focusLevel": null,
+            "isUrgent": null
+        },
+        {
+            "taskId": 2,
+            "dayPlanId": 101,
+            "title": "통계학 실습 과제",
+            "status": "DONE",
+            "type": "FLEX",
+            "assignedBy": "AI",
+            "assignmentStatus": "ASSIGNED",
+            "startAt": "21:15",
+            "endAt": "22:45",
+            "estimatedTimeRange": "HOUR_1_TO_2",
+            "focusLevel": 8,
+            "isUrgent": true
+        },
+        {
+            "taskId": 3,
+            "dayPlanId": 101,
+            "title": "운동",
+            "status": "TODO",
+            "type": "FLEX",
+            "assignedBy": "AI",
+            "assignmentStatus": "EXCLUDED",
+            "startAt": null,
+            "endAt": null,
+            "estimatedTimeRange": "MINUTE_30_TO_60",
+            "focusLevel": 5,
+            "isUrgent": false
+        },
+        {
+            "taskId": 4,
+            "dayPlanId": 101,
+            "title": "독서",
+            "status": "TODO",
+            "type": "FLEX",
+            "assignedBy": "AI",
+            "assignmentStatus": "NOT_ASSIGNED",
+            "startAt": null,
+            "endAt": null,
+            "estimatedTimeRange": "HOUR_1_TO_2",
+            "focusLevel": 6,
+            "isUrgent": false
+        }
+    ],
+    "scheduleHistories": [
+        {
+            "scheduleId": 2,
+            "eventType": "ASSIGN_TIME",
+            "prevStartAt": null,
+            "prevEndAt": null,
+            "newStartAt": "21:15",
+            "newEndAt": "22:45",
+            "createdAt": "2026-01-10T19:05:10.123456"
+        },
+        {
+            "scheduleId": 2,
+            "eventType": "MOVE_TIME",
+            "prevStartAt": "20:30",
+            "prevEndAt": "22:00",
+            "newStartAt": "21:15",
+            "newEndAt": "22:45",
+            "createdAt": "2026-01-10T19:10:40.456789"
+        },
+        {
+            "scheduleId": 2,
+            "eventType": "CHANGE_DURATION",
+            "prevStartAt": "21:15",
+            "prevEndAt": "22:15",
+            "newStartAt": "21:15",
+            "newEndAt": "22:45",
+            "createdAt": "2026-01-10T19:18:05.987654"
+        }
+    ]
+}

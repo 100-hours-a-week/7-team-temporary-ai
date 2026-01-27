@@ -81,3 +81,21 @@ def _create_session(start: int, end: int) -> FreeSession:
         duration=duration,
         timeZoneProfile=profile
     )
+
+def calculate_capacity(free_sessions: List[FreeSession]) -> Dict[str, int]:
+    """
+    FreeSession 리스트를 순회하며 각 시간대(TimeZone)별 총 가용 시간(분)을 합산합니다.
+    """
+    capacity = {
+        "MORNING": 0,
+        "AFTERNOON": 0,
+        "EVENING": 0,
+        "NIGHT": 0
+    }
+    
+    for session in free_sessions:
+        for tz, minutes in session.timeZoneProfile.items():
+            if tz in capacity:
+                capacity[tz] += minutes
+                
+    return capacity

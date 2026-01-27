@@ -11,3 +11,10 @@ python-dotenv==1.2.1
 
 # Google Generative AI (Gemini) - 새로운 패키지
 google-genai==1.60.0
+
+# Logfire
+logfire==4.19.0
+
+# Database
+supabase==2.27.2
+

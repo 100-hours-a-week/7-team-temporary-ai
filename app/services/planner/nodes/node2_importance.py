@@ -1,3 +1,4 @@
+import logfire  # [Logfire] Import
 from typing import Dict, Optional
 from app.models.planner.internal import PlannerGraphState, TaskFeature
 from app.models.planner.request import ScheduleItem
@@ -14,6 +15,7 @@ COG_LOAD_VALUE = {
     "HIGH": 2
 }
 
+@logfire.instrument  # [Logfire] Instrument
 def node2_importance(state: PlannerGraphState) -> PlannerGraphState:
     """
     Node 2: 중요도 산출
@@ -25,6 +27,9 @@ def node2_importance(state: PlannerGraphState) -> PlannerGraphState:
     weights = state.weights # 가중치
     
     new_task_features: Dict[int, TaskFeature] = {} 
+    
+    # [Logfire] 입력 데이터 로깅
+    logfire.info("Node 2 Input Data", input={"taskFeatures": state.taskFeatures, "weights": state.weights})
     
     flex_task_map: Dict[int, ScheduleItem] = {t.taskId: t for t in state.flexTasks}
 
@@ -72,4 +77,9 @@ def node2_importance(state: PlannerGraphState) -> PlannerGraphState:
         new_task_features[task_id] = updated_feature
 
     # state 업데이트
-    return state.model_copy(update={"taskFeatures": new_task_features})
+    result_state = state.model_copy(update={"taskFeatures": new_task_features})
+    
+    # [Logfire] 결과 명시적 기록
+    logfire.info("Node 2 Result", result=result_state)
+    
+    return result_state

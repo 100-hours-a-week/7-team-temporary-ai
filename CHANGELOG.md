@@ -4,34 +4,180 @@
 
 ---
 
-## 2026-01-25
+## 2026-01-27
 
-### FIXED 작업 제약 완화 및 시스템 안정성 강화
+### 개인화 데이터 수집 (Personalization Ingest) API 구현
 
-**목적**: 사용자의 확정된 일정을 시스템이 인위적으로 제한하지 않도록 정책을 변경하고, 코드 전반의 타입 안정성과 테스트 환경을 개선함.
+**목적**: 사용자가 수정한 최종 플래너 데이터를 DB에 저장(Ingest)하여, 향후 개인화 학습(IRL)을 위한 기초 데이터를 확보함.
 
 #### 주요 변경 사항
 
-1. **[app/models/planner_test.py](app/models/planner_test.py) & [app/services/gemini_test_planner_service.py](app/services/gemini_test_planner_service.py)**
-   - **제약 완화**: `FIXED` 작업이 `startArrange` 이전이거나 `dayEndTime` 이후인 경우에도 `EXCLUDED` 처리하거나 에러를 내지 않도록 수정.
-   - **의도**: 사용자가 정한 시간은 시스템이 보정하는 대신 그대로 존중하도록 변경.
+1. **[app/models/personalization.py](app/models/personalization.py)** (신규)
+   - **Pydantic 모델**: `PersonalizationIngestRequest` 등 요청/응답 스키마 정의.
+   - **Swagger 연동**: 일주일치 대용량 샘플 데이터를 예시로 탑재하여 즉시 테스트 가능하도록 설정.
 
-2. **[app/models/planner/internal.py](app/models/planner/internal.py) & [app/services/planner/nodes/node1_structure.py](app/services/planner/nodes/node1_structure.py)**
-   - **모델 동기화**: `TaskFeature` 모델에 누락된 `combined_embedding_text` 필드 추가 및 기본값 설정.
-   - **코드 다이어트**: Pydantic의 `default_factory` 및 기본값 설정을 활용하여 `node1_structure.py` 내의 중복된 0 초기화 코드 제거.
-   - **타입 안정성**: `EstimatedTimeRange`, `ScheduleItem` 등 명시적 타입 힌트 적용으로 오타 및 런타임 에러 방지.
+2. **[app/db/repositories/personalization_repository.py](app/db/repositories/personalization_repository.py)** (신규)
+   - **DB 연동**: Supabase Client를 통해 `planner_records`, `record_tasks`, `schedule_histories` 테이블에 트랜잭션 단위(논리적)로 데이터 저장.
 
-3. **[tests/test_node1.py](tests/test_node1.py) & [tests/test_node1_fallback.py](tests/test_node1_fallback.py)**
-   - **한글 정렬 보정**: 한글(CJK) 문자의 출력 폭을 계산하는 `get_display_width` 도입으로 터미널 결과 표 정렬을 완벽하게 맞춤.
-   - **실행 환경 개선**: `sys.path` 수정을 통해 `ModuleNotFoundError` 없이 어느 위치에서든 테스트 실행이 가능하도록 보강.
+3. **[app/api/v1/endpoints/personalization.py](app/api/v1/endpoints/personalization.py)** (신규)
+   - **엔드포인트**: `POST /ai/v1/personalizations/ingest` 구현.
 
-4. **[app/models/planner/request.py](app/models/planner/request.py)**
-   - **중복 제거**: `ArrangementState` 내 중복 정의된 `schedules` 필드 정리.
+4. **[tests/data/personalization_ingest_week_sample.json](tests/data/personalization_ingest_week_sample.json)** (신규)
+   - **테스트 데이터**: 일주일치 데모 데이터셋 생성 (Swagger UI 및 자동화 테스트 공용).
 
-#### 효과
-- **사용자 경험(UX)**: "이미 지난 약속"이나 "자정을 넘기는 일정"도 유연하게 수용 가능함.
-- **개발 생산성**: 명확한 타입 선언과 정돈된 코드로 버그 발생 확률을 낮추고 가독성 향상.
-- **가시성**: 터미널 테스트 결과가 정갈하게 출력되어 분석이 용이해짐.
+   - **테스트 데이터**: 일주일치 데모 데이터셋 생성 (Swagger UI 및 자동화 테스트 공용).
+
+### API 안정성 및 유지보수 개선
+
+**목적**: Swagger UI 가시성 확보 및 에러 핸들링 고도화를 통해 API 사용성 개선.
+
+#### 주요 변경 사항
+
+1. **에러 코드 확장 및 구조화**:
+   - `PersonalizationErrorCode` 추가: `DB_CONNECTION_ERROR`, `DB_INSERT_ERROR` 등 구체적 에러 상황 식별 가능.
+   - `PersonalizationIngestResponse`: `errorCode` 필드 추가로 클라이언트가 실패 원인을 명확히 파악 가능.
+
+2. **Swagger UI 중복 라우터 버그 수정**:
+   - `gemini_test_planners` 라우터 등록 시 중복 태그(`tags=["Gemini Test"]`) 제거.
+   - 단일 엔드포인트가 두 개의 그룹으로 나뉘어 보이는 문제 해결.
+
+3. **의존성 관리 강화**:
+   - `requirements.txt`: `supabase==2.27.2` 등 주요 라이브러리 버전 명시.
+
+### Node 3 (Task Chain Generator) 고도화 - 중요도 정규화
+
+**목적**: LLM이 작업 간의 상대적 중요도를 명확히 파악할 수 있도록, 입력되는 중요도 점수(`importanceScore`)를 0~1 범위로 정규화(Min-Max Normalization)하여 제공함. 이를 통해 입력 스케일에 구애받지 않는 강건한 의사결정을 지원함.
+
+#### 주요 변경 사항
+
+1. **[app/llm/prompts/node3_prompt.py](app/llm/prompts/node3_prompt.py)**
+   - **Min-Max 정규화 로직 추가**: 입력된 모든 Task의 중요도 점수를 계산하여 `(score - min) / (max - min)` 공식으로 0.0~1.0 사이 값으로 변환.
+   - **Prompt 개선**: `Tasks` 설명에 중요도 점수가 정규화된 상대값임을 명시하여 LLM의 혼동 방지.
+
+2. **[tests/test_node3_normalization.py](tests/test_node3_normalization.py)** (신규)
+   - **단위 테스트**: 다양한 케이스(일반 분포, 단일 값, 동일 값, 빈 리스트)에 대해 정규화 로직이 올바르게 동작하는지 검증.
+
+3. **[README.md](README.md)**
+   - **테스트 가이드 추가**: Node 3 정규화 로직 테스트 실행 명령어(`python -m unittest tests/test_node3_normalization.py`) 추가.
+
+---
+
+## 2026-01-26
+
+### 에러 코드 중앙화 및 선별적 재시작 로직
+
+**목적**: 에러 코드를 중앙에서 관리하여 유지보수성을 높이고, 랭그래프 노드에 지능형 재시작 로직(선별적 재시작)을 도입하여 시스템 안정성을 강화함.
+
+#### 주요 변경 사항
+
+1. **[app/models/planner/errors.py](app/models/planner/errors.py)** (신규)
+   - **에러 코드 정의**: `PlannerErrorCode` Enum을 통해 에러 코드를 상수로 관리.
+   - **헬퍼 함수**: `map_exception_to_error_code` (예외 매핑), `is_retryable_error` (재시작 가능 여부 판단) 구현.
+
+2. **[app/api/v1/gemini_test_planners.py](app/api/v1/gemini_test_planners.py)**
+   - **리팩토링**: 하드코딩된 에러 문자열을 `PlannerErrorCode` 상수로 교체하여 일관성 확보.
+
+3. **[app/services/planner/nodes/node1_structure.py](app/services/planner/nodes/node1_structure.py)**
+   - **전면 재시도 (Comprehensive Retry)**: **서버 에러(5xx)** 뿐만 아니라 **LLM 할루시네이션, JSON 구조 오류(400)** 등 모든 데이터 무결성 실패에 대해 적극적으로 재시도하도록 로직을 강화함.
+   - **무결성 검증**: TaskId, Category, CognitiveLoad 값이 유효하지 않은 경우 즉시 `ValueError`를 발생시켜 재시도 트리거.
+
+4. **[app/services/planner/nodes/node3_chain_generator.py](app/services/planner/nodes/node3_chain_generator.py)**
+   - **전면 재시도**: Node 1과 동일하게 서버 에러 및 데이터 무결성 오류(할루시네이션, 빈 후보 등) 발생 시 전면 재시도 적용.
+
+5. **지수 백오프 (Exponential Backoff)**
+   - **부하 분산**: 재시도 시 고정 시간이 아닌 점진적으로 대기 시간을 늘려 (`1초` → `2초` → `4초` → `8초`) 서버 과부하 상태에서 회복할 시간을 확보.
+   - **Node 1 & Node 3 적용**: `asyncio.sleep`을 활용하여 비동기 적으로 대기하도록 구현.
+
+
+### Node 4 (Chain Judgement) 구현
+
+**목적**: LLM이 생성한 여러 체인 후보 중 **수학적 최적해**를 선택하는 Node 4를 구현함. 현실성(Overflow)과 논리적 완결성(Closure)을 보장하는 정교한 점수 산정 로직 적용.
+
+#### 주요 변경 사항
+
+1. **[app/services/planner/nodes/node4_chain_judgement.py](app/services/planner/nodes/node4_chain_judgement.py)** (신규)
+   - **Closure 강제**: 그룹 작업의 순서(`orderInGroup`)를 엄격히 검사하여, 선행 작업이 없는 후행 작업을 체인에서 자동 제거.
+   - **Overflow Penalty**: 시간대별 가용량의 120%까지는 "안전 구간(Safe Buffer)"으로 보아 미세 페널티 부여, 그 이상은 기하급수적($O^2$) 페널티를 부여하여 현실성 없는 계획 차단.
+   - **Comprehensive Scoring**: 단순 포함/제외 점수뿐만 아니라 피로도 위험(`Fatigue Risk`), 집중 시간대 정렬(`Focus Align`) 보너스 등을 종합 반영.
+
+2. **[tests/test_node4.py](tests/test_node4.py)** (신규)
+   - **단위 테스트**: Closure 강제 로직, Overflow 페널티 함수, 최종 체인 선택 로직에 대한 검증 코드 작성 (3/3 pass).
+
+3. **[tests/test_integration_node1_to_node4.py](tests/test_integration_node1_to_node4.py)** (신규)
+   - **통합 테스트**: Node 1(구조) -> Node 2(중요도) -> Node 3(체인생성) -> Node 4(체인평가)로 이어지는 전체 파이프라인 검증 및 최적 체인 선택 확인.
+
+### LLM 파이프라인 관측성 (Observability) 강화 - Logfire 도입
+
+**목적**: 복잡한 LangGraph 파이프라인의 실행 흐름과 데이터 변화(State Transition)를 시각적으로 추적하기 위해 **[Logfire](https://logfire.pydantic.dev)**를 도입함.
+
+#### 주요 변경 사항
+
+1. **[app/services/planner/nodes/node1_structure.py](app/services/planner/nodes/node1_structure.py)**
+   - **Instrumentation**: `node1_structure_analysis` 함수에 `@logfire.instrument` 데코레이터를 적용하여 입력(State)과 출력(Updated State)을 자동 추적.
+
+2. **[tests/test_node1.py](tests/test_node1.py)**
+   - **Logfire 적용**: 테스트 실행 시 Logfire를 초기화하고, `with logfire.span(...)`을 통해 테스트 실행 구간을 명시적으로 기록.
+   - **환경 개선**: `sys.path.append` 로직을 최상단으로 이동하여 모듈 import 오류 해결.
+
+3. **Node 2 (Importance) 관측성 적용**
+   - **[app/services/planner/nodes/node2_importance.py](app/services/planner/nodes/node2_importance.py)**: `node2_importance` 함수에 Instrumentation 적용.
+
+4. **Node 3 (Chain Generator) 관측성 적용**
+   - **[app/services/planner/nodes/node3_chain_generator.py](app/services/planner/nodes/node3_chain_generator.py)**: `node3_chain_generator` 함수에 Instrumentation 적용.
+
+5. **Node 4 (Chain Judgement) 관측성 적용**
+   - **[app/services/planner/nodes/node4_chain_judgement.py](app/services/planner/nodes/node4_chain_judgement.py)**: `node4_chain_judgement` 함수에 Instrumentation 적용.
+   - **테스트 업데이트**: `tests/test_node4.py` 및 `tests/test_integration_node1_to_node4.py`에 Logfire 관측 영역 추가.
+
+6. **LLM 입출력 데이터 명시적 로깅 (Input/Result Logging)**
+   - **Node 1, 2, 3, 4 적용**: `logfire.info("... Input Data", input=...)` 및 `logfire.info("... Result", result=...)`를 추가하여 대시보드에서 LLM 입력 프롬프트와 최종 상태값을 즉시 확인할 수 있도록 개선.
+
+7. **테스트 안정성 및 가용성 검증 강화**
+   - **[tests/test_node3.py](tests/test_node3.py)**: `NIGHT` 시간대(21:00~23:00) 가용 세션을 추가하여 야간 작업 배분 로직 검증.
+   - **통합 테스트 리팩토링**: `tests/test_integration_node1_to_node3.py` 및 `tests/test_integration_node1_to_node4.py`에서 하드코딩된 대역 데이터를 제거하고, `calculate_free_sessions` 유틸리티를 사용하여 `test_request.json` 설정에 따라 동적으로 가용 시간을 계산하도록 개선.
+   - **Logfire 관측 영역 확장**: 모든 단위 테스트 및 통합 테스트에 Logfire Span을 추가하여 테스트 실행 과정의 가시성 확보.
+
+---
+
+## 2026-01-25
+
+### Node 3 (Task Chain Generator) 및 시스템 안정화
+
+**목적**: 후보 체인을 생성하는 Node 3를 구현하고, 지능형 Fallback 로직과 무결성 검증을 도입하여 안정성을 확보함. 또한 FIXED 작업 제약을 완화하여 사용자 편의성을 개선함.
+
+#### 주요 변경 사항
+
+1. **[app/services/planner/nodes/node3_chain_generator.py](app/services/planner/nodes/node3_chain_generator.py)** (신규)
+   - **LLM 기반 배치**: Gemini 2.5 Flash Lite를 활용해 4~6개의 배치 시나리오 생성 로직 구현.
+   - **지능형 Fallback**: API 실패 시 "중요도 순 정렬 + 시간대별 분산(Safety Cap 120%)" 방식의 안전장치 적용.
+   - **무결성 검증**: LLM이 생성한 `taskId`가 원본에 없는 경우(Hallucination) 자동 필터링.
+
+2. **[app/llm/prompts/node3_prompt.py](app/llm/prompts/node3_prompt.py)** (신규)
+   - **Prompt Engineering**: 시간대별 할당 규칙, JSON 스키마, COT(Chain-of-Thought) 유도를 포함한 시스템 프롬프트 정의.
+
+3. **[app/services/planner/utils/session_utils.py](app/services/planner/utils/session_utils.py)**
+   - **기능 추가**: `calculate_capacity` 함수를 추가하여 시간대별(MORNING, AFTERNOON 등) 분 단위 가용량을 계산.
+
+4. **[app/models/planner/internal.py](app/models/planner/internal.py)**
+   - **모델 수정**: `ChainCandidate` 모델 적용 및 `TaskFeature`에 `combined_embedding_text` 필드 추가.
+   - **타입 강화**: `SchedulerItem` 등의 명시적 타입 힌트 적용으로 안정성 확보.
+
+5. **[app/models/planner_test.py](app/models/planner_test.py) & [app/services/gemini_test_planner_service.py](app/services/gemini_test_planner_service.py)**
+   - **정책 변경**: FIXED 작업의 시간 제약(startArrange~dayEndTime) 검증 로직 제거 (사용자 입력 존중).
+
+6. **[app/services/planner/nodes/node1_structure.py](app/services/planner/nodes/node1_structure.py)**
+   - **리팩토링**: Pydantic `default_factory` 활용으로 불필요한 초기화 코드 제거 및 가독성 개선.
+   - **타입 힌트**: 명시적 타입 힌트 추가.
+
+7. **[tests/test_node3.py](tests/test_node3.py) & [tests/test_node3_fallback.py](tests/test_node3_fallback.py)** (신규)
+   - **단위 테스트**: Node 3의 정상 동작(LLM 연동) 및 에러 상황(Fallback) 검증 코드 작성.
+
+8. **[tests/test_integration_node1_to_node3.py](tests/test_integration_node1_to_node3.py)** (신규)
+   - **통합 테스트**: Node 1 -> Node 2 -> Node 3 파이프라인 연계 및 데이터 흐름 검증.
+
+9. **[tests/test_node1.py](tests/test_node1.py) & [tests/test_node2.py](tests/test_node2.py)**
+   - **환경 개선**: 한글/영문 혼용 시 터미널 표 깨짐 방지를 위한 `get_display_width` 정렬 로직 적용.
+   - **경로 수정**: `sys.path` 추가로 테스트 실행 경로 유연성 확보.
 
 ---
 
