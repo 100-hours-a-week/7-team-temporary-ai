@@ -226,6 +226,24 @@ python -m unittest tests/test_integration_node1_to_node4.py
 ```
 
 ---
+
+### V1 - 개인화 데이터 수집 (Personalization Ingest)
+1. `app/api/v1/endpoints/personalization.py`
+    - `POST /ai/v1/personalizations/ingest`
+    - 백엔드로부터 사용자의 최종 플래너 및 수정 이력을 수신하여 DB에 저장
+2. `tests/test_personalization_ingest.py`
+    - API 엔드포인트 동작 검증
+```bash
+python -m unittest tests/test_personalization_ingest.py
+```
+3. **Swagger UI 테스트**:
+    - 서버 실행 후 `/docs` 접속
+    - `POST /ai/v1/personalizations/ingest` 클릭
+    - **Example Value**가 일주일치 샘플 데이터로 자동 채워짐
+    - **Execute** 버튼 클릭으로 즉시 테스트 가능
+
+
+---
 ## 참고 문서
 
 - [api명세서.md](api명세서.md) - API 명세서

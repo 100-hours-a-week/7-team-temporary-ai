@@ -6,6 +6,44 @@
 
 ## 2026-01-27
 
+### 개인화 데이터 수집 (Personalization Ingest) API 구현
+
+**목적**: 사용자가 수정한 최종 플래너 데이터를 DB에 저장(Ingest)하여, 향후 개인화 학습(IRL)을 위한 기초 데이터를 확보함.
+
+#### 주요 변경 사항
+
+1. **[app/models/personalization.py](app/models/personalization.py)** (신규)
+   - **Pydantic 모델**: `PersonalizationIngestRequest` 등 요청/응답 스키마 정의.
+   - **Swagger 연동**: 일주일치 대용량 샘플 데이터를 예시로 탑재하여 즉시 테스트 가능하도록 설정.
+
+2. **[app/db/repositories/personalization_repository.py](app/db/repositories/personalization_repository.py)** (신규)
+   - **DB 연동**: Supabase Client를 통해 `planner_records`, `record_tasks`, `schedule_histories` 테이블에 트랜잭션 단위(논리적)로 데이터 저장.
+
+3. **[app/api/v1/endpoints/personalization.py](app/api/v1/endpoints/personalization.py)** (신규)
+   - **엔드포인트**: `POST /ai/v1/personalizations/ingest` 구현.
+
+4. **[tests/data/personalization_ingest_week_sample.json](tests/data/personalization_ingest_week_sample.json)** (신규)
+   - **테스트 데이터**: 일주일치 데모 데이터셋 생성 (Swagger UI 및 자동화 테스트 공용).
+
+   - **테스트 데이터**: 일주일치 데모 데이터셋 생성 (Swagger UI 및 자동화 테스트 공용).
+
+### API 안정성 및 유지보수 개선
+
+**목적**: Swagger UI 가시성 확보 및 에러 핸들링 고도화를 통해 API 사용성 개선.
+
+#### 주요 변경 사항
+
+1. **에러 코드 확장 및 구조화**:
+   - `PersonalizationErrorCode` 추가: `DB_CONNECTION_ERROR`, `DB_INSERT_ERROR` 등 구체적 에러 상황 식별 가능.
+   - `PersonalizationIngestResponse`: `errorCode` 필드 추가로 클라이언트가 실패 원인을 명확히 파악 가능.
+
+2. **Swagger UI 중복 라우터 버그 수정**:
+   - `gemini_test_planners` 라우터 등록 시 중복 태그(`tags=["Gemini Test"]`) 제거.
+   - 단일 엔드포인트가 두 개의 그룹으로 나뉘어 보이는 문제 해결.
+
+3. **의존성 관리 강화**:
+   - `requirements.txt`: `supabase==2.27.2` 등 주요 라이브러리 버전 명시.
+
 ### Node 3 (Task Chain Generator) 고도화 - 중요도 정규화
 
 **목적**: LLM이 작업 간의 상대적 중요도를 명확히 파악할 수 있도록, 입력되는 중요도 점수(`importanceScore`)를 0~1 범위로 정규화(Min-Max Normalization)하여 제공함. 이를 통해 입력 스케일에 구애받지 않는 강건한 의사결정을 지원함.

@@ -29,6 +29,18 @@ class PlannerErrorCode(str, Enum):
     # 500 Internal Server Error
     PLANNER_SERVER_ERROR = "PLANNER_SERVER_ERROR"
 
+class PersonalizationErrorCode(str, Enum):
+    # 데이터베이스 관련
+    DB_CONNECTION_ERROR = "DB_CONNECTION_ERROR"
+    DB_INSERT_ERROR = "DB_INSERT_ERROR"
+    
+    # 데이터 검증 관련
+    INVALID_DATA_FORMAT = "INVALID_DATA_FORMAT"
+    
+    # 기타 서버 에러
+    INTERNAL_SERVER_ERROR = "INTERNAL_SERVER_ERROR"
+
+
 def map_exception_to_error_code(e: Exception) -> PlannerErrorCode:
     """Exception을 PlannerErrorCode로 매핑"""
     if isinstance(e, google_exceptions.InvalidArgument):
