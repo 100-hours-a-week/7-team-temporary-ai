@@ -31,6 +31,10 @@ class TestPersonalizationIngest(unittest.TestCase):
 
         # 3. Assertions
         print(f"\n[Test Result] Status: {response.status_code}")
+        try:
+            print(f"[Test Result] Response Body: {response.json()}")
+        except:
+            print(f"[Test Result] Response Text: {response.text}")
         
         # Check if API accepts the request format (200 OK expected)
         self.assertEqual(response.status_code, 200)
