@@ -1,5 +1,16 @@
 import unittest
+import os
+import sys
+import logfire  # [Logfire] Import
 from typing import Dict, List
+
+# [Logfire] Configure
+logfire.configure(send_to_logfire='if-token-present')
+logfire.instrument_pydantic()
+
+# Ensure project root is in path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from app.services.planner.nodes.node4_chain_judgement import apply_closure, overflow_penalty, node4_chain_judgement
 from app.models.planner.internal import PlannerGraphState, ChainCandidate, TaskFeature, FreeSession
 from app.models.planner.weights import WeightParams
@@ -102,7 +113,9 @@ class TestNode4ChainJudgement(unittest.TestCase):
         )
         
         # 2. Execute Node 4
-        new_state = node4_chain_judgement(state)
+        # [Logfire] Wrap test execution
+        with logfire.span("tests/test_node4.py"):
+            new_state = node4_chain_judgement(state)
         
         # 3. Assert Chain A is selected (Score 50 > -100)
         self.assertEqual(new_state.selectedChainId, "A")

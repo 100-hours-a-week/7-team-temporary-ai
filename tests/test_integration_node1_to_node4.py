@@ -2,7 +2,17 @@ import unittest
 import json
 import asyncio
 import os
+import sys
 import unicodedata
+import logfire  # [Logfire] Import
+
+# [Logfire] Configure
+logfire.configure(send_to_logfire='if-token-present')
+logfire.instrument_pydantic()
+
+# Ensure project root is in path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from app.services.planner.nodes.node1_structure import node1_structure_analysis
 from app.services.planner.nodes.node2_importance import node2_importance
 from app.services.planner.nodes.node3_chain_generator import node3_chain_generator
@@ -48,13 +58,14 @@ class TestIntegrationNode1ToNode4(unittest.IsolatedAsyncioTestCase):
         fixed_tasks = [t for t in request_model.schedules if t.type == "FIXED"]
         flex_tasks = [t for t in request_model.schedules if t.type == "FLEX"]
         
-        # 가용 세션 (충분히 줌 - Node 3/4 테스트를 위해)
-        from app.models.planner.internal import FreeSession
-        sessions = [
-            FreeSession(start=540, end=720, duration=180, timeZoneProfile={"MORNING": 180}), # 09:00~12:00
-            FreeSession(start=720, end=1080, duration=360, timeZoneProfile={"AFTERNOON": 360}), # 12:00~18:00
-            FreeSession(start=1080, end=1260, duration=180, timeZoneProfile={"EVENING": 180}), # 18:00~21:00
-        ]
+        from app.services.planner.utils.session_utils import calculate_free_sessions
+        
+        # Request 정보 기반으로 FreeSession 동적 계산
+        sessions = calculate_free_sessions(
+            start_arrange_str=request_model.startArrange,
+            day_end_time_str=request_model.user.dayEndTime,
+            fixed_schedules=fixed_tasks
+        )
         
         self.state = PlannerGraphState(
             request=request_model,
@@ -68,81 +79,84 @@ class TestIntegrationNode1ToNode4(unittest.IsolatedAsyncioTestCase):
     async def test_pipeline_flow(self):
         print("\n\n>>> 통합 테스트 진행: Node 1 -> Node 2 -> Node 3 -> Node 4 <<<")
         
-        # -------------------------------------------------------------
-        # 1. Run Node 1 (Structure Analysis - LLM)
-        # -------------------------------------------------------------
-        print("\n" + "=" * 105)
-        print(" [Step 1] Running Node 1: Structure Analysis (LLM)")
-        print("=" * 105)
+        # [Logfire] Wrap test execution
+        with logfire.span("tests/test_integration_node1_to_node4.py"):
         
-        state_after_node1 = await node1_structure_analysis(self.state)
-        f_n1 = state_after_node1.taskFeatures
-        print(f"\n[Node 1 결과] 총 피쳐 수: {len(f_n1)}")
-
-        # -------------------------------------------------------------
-        # 2. Run Node 2 (Importance & Filtering - Logic)
-        # -------------------------------------------------------------
-        print("\n" + "=" * 105)
-        print(" [Step 2] Running Node 2: Importance & Filtering (Logic)")
-        print("=" * 105)
-        
-        state_after_node2 = node2_importance(state_after_node1)
-        f_n2 = state_after_node2.taskFeatures
-        print(f"\n[Node 2 결과] 총 피쳐 수 (필터링 후): {len(f_n2)}")
-
-        # -------------------------------------------------------------
-        # 3. Run Node 3 (Chain Generator - LLM)
-        # -------------------------------------------------------------
-        print("\n" + "=" * 105)
-        print(" [Step 3] Running Node 3: Chain Generator (LLM)")
-        print("=" * 105)
-        
-        state_after_node3 = await node3_chain_generator(state_after_node2)
-        candidates = state_after_node3.chainCandidates
-        print(f"\n[Node 3 결과] 생성된 후보 체인 수: {len(candidates)}")
-        
-        self.assertTrue(len(candidates) > 0, "Should generate at least 1 candidate")
-
-        # -------------------------------------------------------------
-        # 4. Run Node 4 (Chain Judgement - Logic)
-        # -------------------------------------------------------------
-        print("\n" + "=" * 105)
-        print(" [Step 4] Running Node 4: Chain Judgement (Logic)")
-        print("=" * 105)
-        
-        state_after_node4 = node4_chain_judgement(state_after_node3)
-        selected_id = state_after_node4.selectedChainId
-        
-        print(f"\n[Node 4 결과] 선택된 최적 체인 ID: {selected_id}")
-        
-        separator = "-" * 105
-        print(separator)
-        
-        # 선택된 체인 상세 정보 출력
-        selected_chain = next((c for c in state_after_node4.chainCandidates if c.chainId == selected_id), None)
-        
-        self.assertIsNotNone(selected_chain, "Selected chain must exist in candidates")
-        
-        print(f"Selected Chain: {selected_id}")
-        if selected_chain:
-            print(f"Tags: {selected_chain.rationaleTags}")
+            # -------------------------------------------------------------
+            # 1. Run Node 1 (Structure Analysis - LLM)
+            # -------------------------------------------------------------
+            print("\n" + "=" * 105)
+            print(" [Step 1] Running Node 1: Structure Analysis (LLM)")
+            print("=" * 105)
             
-            # ID to Title Map
-            id_map = {f.taskId: f.title for f in f_n2.values()}
+            state_after_node1 = await node1_structure_analysis(self.state)
+            f_n1 = state_after_node1.taskFeatures
+            print(f"\n[Node 1 결과] 총 피쳐 수: {len(f_n1)}")
+
+            # -------------------------------------------------------------
+            # 2. Run Node 2 (Importance & Filtering - Logic)
+            # -------------------------------------------------------------
+            print("\n" + "=" * 105)
+            print(" [Step 2] Running Node 2: Importance & Filtering (Logic)")
+            print("=" * 105)
             
-            for tz, q in selected_chain.timeZoneQueues.items():
-                if not q: continue
-                titles = []
-                for tid in q:
-                    title = id_map.get(tid, 'Unknown')
-                    if len(title) > 20: 
-                        title = title[:18] + ".."
-                    titles.append(f"{tid}({title})")
+            state_after_node2 = node2_importance(state_after_node1)
+            f_n2 = state_after_node2.taskFeatures
+            print(f"\n[Node 2 결과] 총 피쳐 수 (필터링 후): {len(f_n2)}")
+
+            # -------------------------------------------------------------
+            # 3. Run Node 3 (Chain Generator - LLM)
+            # -------------------------------------------------------------
+            print("\n" + "=" * 105)
+            print(" [Step 3] Running Node 3: Chain Generator (LLM)")
+            print("=" * 105)
+            
+            state_after_node3 = await node3_chain_generator(state_after_node2)
+            candidates = state_after_node3.chainCandidates
+            print(f"\n[Node 3 결과] 생성된 후보 체인 수: {len(candidates)}")
+            
+            self.assertTrue(len(candidates) > 0, "Should generate at least 1 candidate")
+
+            # -------------------------------------------------------------
+            # 4. Run Node 4 (Chain Judgement - Logic)
+            # -------------------------------------------------------------
+            print("\n" + "=" * 105)
+            print(" [Step 4] Running Node 4: Chain Judgement (Logic)")
+            print("=" * 105)
+            
+            state_after_node4 = node4_chain_judgement(state_after_node3)
+            selected_id = state_after_node4.selectedChainId
+            
+            print(f"\n[Node 4 결과] 선택된 최적 체인 ID: {selected_id}")
+            
+            separator = "-" * 105
+            print(separator)
+            
+            # 선택된 체인 상세 정보 출력
+            selected_chain = next((c for c in state_after_node4.chainCandidates if c.chainId == selected_id), None)
+            
+            self.assertIsNotNone(selected_chain, "Selected chain must exist in candidates")
+            
+            print(f"Selected Chain: {selected_id}")
+            if selected_chain:
+                print(f"Tags: {selected_chain.rationaleTags}")
                 
-                print(f"  [{pad_text(tz, 9)}] {', '.join(titles)}")
-        
-        print(separator)
-        print("\n>>> 통합 테스트 1~4 완료 <<<")
+                # ID to Title Map
+                id_map = {f.taskId: f.title for f in f_n2.values()}
+                
+                for tz, q in selected_chain.timeZoneQueues.items():
+                    if not q: continue
+                    titles = []
+                    for tid in q:
+                        title = id_map.get(tid, 'Unknown')
+                        if len(title) > 20: 
+                            title = title[:18] + ".."
+                        titles.append(f"{tid}({title})")
+                    
+                    print(f"  [{pad_text(tz, 9)}] {', '.join(titles)}")
+            
+            print(separator)
+            print("\n>>> 통합 테스트 1~4 완료 <<<")
 
 if __name__ == '__main__':
     unittest.main()

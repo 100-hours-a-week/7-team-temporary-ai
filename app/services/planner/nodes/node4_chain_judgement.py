@@ -1,6 +1,7 @@
 from typing import Dict, List, Set, Tuple
 from collections import defaultdict
 import math
+import logfire  # [Logfire] Import
 
 from app.models.planner.internal import PlannerGraphState, ChainCandidate, TaskFeature
 from app.services.planner.utils.session_utils import calculate_capacity
@@ -173,7 +174,16 @@ def calculate_chain_score(
     
     return final_score, details
 
+@logfire.instrument  # [Logfire] Instrument
 def node4_chain_judgement(state: PlannerGraphState) -> PlannerGraphState:
+    # [Logfire] Input Logging
+    logfire.info("Node 4 Input Data", input={
+        "candidates": state.chainCandidates,
+        "taskFeatures": state.taskFeatures,
+        "weights": state.weights,
+        "focusTimeZone": state.request.user.focusTimeZone
+    })
+    
     candidates = state.chainCandidates
     task_features = state.taskFeatures
     weights = state.weights
@@ -238,7 +248,12 @@ def node4_chain_judgement(state: PlannerGraphState) -> PlannerGraphState:
     # 점수 계산은 이미 위에서 수행했음. (순서가 약간 비효율적일 수 있으나 명확성을 위해)
     # 최적화를 위해 위 루프에서 final_candidates를 만들면서 점수 계산
     
-    return state.model_copy(update={
+    result_state = state.model_copy(update={
         "chainCandidates": final_candidates,
         "selectedChainId": best_chain.chainId if best_chain else None
     })
+    
+    # [Logfire] Result Logging
+    logfire.info("Node 4 Result", result=result_state)
+    
+    return result_state
