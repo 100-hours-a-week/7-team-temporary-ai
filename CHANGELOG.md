@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-01-27
+
+### Node 3 (Task Chain Generator) 고도화 - 중요도 정규화
+
+**목적**: LLM이 작업 간의 상대적 중요도를 명확히 파악할 수 있도록, 입력되는 중요도 점수(`importanceScore`)를 0~1 범위로 정규화(Min-Max Normalization)하여 제공함. 이를 통해 입력 스케일에 구애받지 않는 강건한 의사결정을 지원함.
+
+#### 주요 변경 사항
+
+1. **[app/llm/prompts/node3_prompt.py](app/llm/prompts/node3_prompt.py)**
+   - **Min-Max 정규화 로직 추가**: 입력된 모든 Task의 중요도 점수를 계산하여 `(score - min) / (max - min)` 공식으로 0.0~1.0 사이 값으로 변환.
+   - **Prompt 개선**: `Tasks` 설명에 중요도 점수가 정규화된 상대값임을 명시하여 LLM의 혼동 방지.
+
+2. **[tests/test_node3_normalization.py](tests/test_node3_normalization.py)** (신규)
+   - **단위 테스트**: 다양한 케이스(일반 분포, 단일 값, 동일 값, 빈 리스트)에 대해 정규화 로직이 올바르게 동작하는지 검증.
+
+3. **[README.md](README.md)**
+   - **테스트 가이드 추가**: Node 3 정규화 로직 테스트 실행 명령어(`python -m unittest tests/test_node3_normalization.py`) 추가.
+
+---
+
 ## 2026-01-26
 
 ### 에러 코드 중앙화 및 선별적 재시작 로직
@@ -67,13 +87,17 @@
 4. **Node 3 (Chain Generator) 관측성 적용**
    - **[app/services/planner/nodes/node3_chain_generator.py](app/services/planner/nodes/node3_chain_generator.py)**: `node3_chain_generator` 함수에 Instrumentation 적용.
 
-5. **LLM 입출력 데이터 명시적 로깅 (Input/Result Logging)**
-   - **Node 1, 2, 3 적용**: `logfire.info("... Input Data", input=...)` 및 `logfire.info("... Result", result=...)`를 추가하여 대시보드에서 LLM 입력 프롬프트와 최종 상태값을 즉시 확인할 수 있도록 개선.
+5. **Node 4 (Chain Judgement) 관측성 적용**
+   - **[app/services/planner/nodes/node4_chain_judgement.py](app/services/planner/nodes/node4_chain_judgement.py)**: `node4_chain_judgement` 함수에 Instrumentation 적용.
+   - **테스트 업데이트**: `tests/test_node4.py` 및 `tests/test_integration_node1_to_node4.py`에 Logfire 관측 영역 추가.
 
-6. **테스트 안정성 및 가용성 검증 강화**
+6. **LLM 입출력 데이터 명시적 로깅 (Input/Result Logging)**
+   - **Node 1, 2, 3, 4 적용**: `logfire.info("... Input Data", input=...)` 및 `logfire.info("... Result", result=...)`를 추가하여 대시보드에서 LLM 입력 프롬프트와 최종 상태값을 즉시 확인할 수 있도록 개선.
+
+7. **테스트 안정성 및 가용성 검증 강화**
    - **[tests/test_node3.py](tests/test_node3.py)**: `NIGHT` 시간대(21:00~23:00) 가용 세션을 추가하여 야간 작업 배분 로직 검증.
-   - **[tests/test_integration_node1_to_node3.py](tests/test_integration_node1_to_node3.py)**: 하드코딩된 세션 대신 `calculate_free_sessions` 유틸리티를 사용하여 `test_request.json`의 설정값을 기반으로 FreeSession을 동적으로 계산하도록 리팩토링.
-   - **Logfire Span 추가**: `test_node3.py` 및 `test_integration_node1_to_node3.py`에 Logfire 관측 영역 추가.
+   - **통합 테스트 리팩토링**: `tests/test_integration_node1_to_node3.py` 및 `tests/test_integration_node1_to_node4.py`에서 하드코딩된 대역 데이터를 제거하고, `calculate_free_sessions` 유틸리티를 사용하여 `test_request.json` 설정에 따라 동적으로 가용 시간을 계산하도록 개선.
+   - **Logfire 관측 영역 확장**: 모든 단위 테스트 및 통합 테스트에 Logfire Span을 추가하여 테스트 실행 과정의 가시성 확보.
 
 ---
 

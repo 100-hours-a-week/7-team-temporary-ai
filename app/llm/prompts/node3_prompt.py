@@ -13,6 +13,7 @@ NODE3_SYSTEM_PROMPT = """
 
 # 입력 데이터 설명
 1. **Tasks**: 배치해야 할 작업 목록 (중요도, 예상 시간, 그룹 정보 포함)
+   - **importance**: 0.0 ~ 1.0 범위로 정규화된 상대적 중요도입니다. (0.0은 현재 작업들 중 상대적으로 가장 낮음을 의미하며, 중요하지 않다는 뜻이 아닙니다)
 2. **Capacity**: 각 시간대별(MORNING/AFTERNOON/EVENING/NIGHT) 가용 시간(분 단위)
 3. **Focus TimeZone**: 사용자가 가장 집중력 있게 일할 수 있는 선호 시간대
 4. **Fixed Schedules**: 이미 확정된 일정 목록 (참고용. 배치 시 이 시간대를 피하거나 전후 관계 고려)
@@ -76,12 +77,28 @@ def format_node3_input(
     # 중요도 순으로 정렬하여 보여주는 것이 LLM이 파악하기 좋음
     sorted_features = sorted(task_features.values(), key=lambda x: x.importanceScore, reverse=True)
 
+    # [Normalization] Importance Score 정규화 (Min-Max Scaling)
+    # 범위가 제각각일 수 있으므로 0.0 ~ 1.0으로 맞춤
+    if not sorted_features:
+        min_score = 0.0
+        max_score = 0.0
+    else:
+        scores = [f.importanceScore for f in sorted_features]
+        min_score = min(scores)
+        max_score = max(scores)
+
     for f in sorted_features:
+        # Min-Max Normalization
+        if max_score == min_score:
+            norm_importance = 1.0 # 모든 점수가 같거나 하나뿐이면 1.0
+        else:
+            norm_importance = (f.importanceScore - min_score) / (max_score - min_score)
+
         task_info = {
             "taskId": f.taskId,
             "title": f.title,
             "category": f.category,
-            "importance": round(f.importanceScore, 2), # 소수점 2자리 등
+            "importance": round(norm_importance, 2), # 정규화된 값 (0~1)
             "durationAvg": f.durationAvgMin, # 평가용 평균 시간 사용
             "groupId": f.groupId,
             "orderInGroup": f.orderInGroup

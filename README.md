@@ -202,6 +202,11 @@ python -m unittest tests/test_node3_fallback.py
 ```bash
 python -m unittest tests/test_integration_node1_to_node3.py
 ```
+7. `tests/test_node3_normalization.py`
+    - Node 3 중요도 점수 정규화 로직(0~1) 테스트
+```bash
+python -m unittest tests/test_node3_normalization.py
+```
 
 ### V1 - Node 4: 체인 평가 (Chain Judgement)
 1. `app/services/planner/nodes/node4_chain_judgement.py`
