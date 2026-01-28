@@ -75,45 +75,54 @@ MOLIP-AI/
 │   ├── api/
 │   │   ├── __init__.py
 │   │   └── v1/
-│   │       ├── __init__.py          # [API] V1 라우터 통합 (gemini_test_planners 등 포함)
-│   │       └── gemini_test_planners.py  # [API] V1 Gemini 플래너 생성 엔드포인트 (POST /ai/v1/planners). 에러 핸들링 및 서비스 호출
+│   │       ├── __init__.py          # [API] V1 라우터 통합 (endpoints 하위 라우터들 포함)
+│   │       ├── gemini_test_planners.py  # [API] V1 Gemini 플래너 생성 엔드포인트 (POST /ai/v1/planners)
+│   │       └── endpoints/           # [API] 주제별 엔드포인트 구현 (v1)
+│   │           └── personalization.py # [API] 개인화 데이터 수집 (POST /ai/v1/personalizations/ingest)
 │   ├── llm/                         # [LLM] LLM 연동 및 프롬프트 관리
 │   │   ├── __init__.py
 │   │   ├── gemini_client.py         # [Client] V1 Gemini(2.5-flash-lite) 클라이언트 래퍼
 │   │   └── prompts/
 │   │       ├── __init__.py
-│   │       ├── node1_prompt.py      # [Prompt] Node 1 (구조 분석)용 시스템 프롬프트 및 데이터 포맷팅
-│   │       └── node3_prompt.py      # [Prompt] Node 3 (체인 생성)용 시스템 프롬프트 및 COT 유도
+│   │       ├── node1_prompt.py      # [Prompt] Node 1 (구조 분석)용 프롬프트
+│   │       └── node3_prompt.py      # [Prompt] Node 3 (체인 생성)용 프롬프트
 │   ├── models/
 │   │   ├── __init__.py
-│   │   ├── planner/                 # [Model] V1 AI 플래너 도메인 모델
-│   │   │   ├── request.py           # [Req] API 요청 스키마 (ArrangementState, ScheduleItem 등) - 입력 검증
-│   │   │   ├── response.py          # [Res] API 응답 스키마 (AssignmentResult 등) - 클라이언트 반환 
-│   │   │   ├── internal.py          # [Inner] LangGraph State 모델 (PlannerGraphState, TaskFeature) - 노드 간 데이터 전달
-│   │   │   ├── weights.py           # [Conf] 개인화 가중치 파라미터 모델 (WeightParams) - 중요도/피로도 산식 계수
-│   │   │   └── errors.py            # [Err] 에러 코드(Enum) 및 예외 매핑 헬퍼 (PlannerErrorCode)
-│   │   └── planner_test.py          # [Model] V1 테스트용 Pydantic 모델
+│   │   ├── personalization.py        # [Model] 개인화 데이터 수집 요청/응답 모델
+│   │   ├── planner/                 # [Model] AI 플래너 도메인 모델
+│   │   │   ├── request.py           # [Req] API 요청 스키마
+│   │   │   ├── response.py          # [Res] API 응답 스키마
+│   │   │   ├── internal.py          # [Inner] LangGraph State 모델
+│   │   │   ├── weights.py           # [Conf] 개인화 가중치 파라미터 모델
+│   │   │   └── errors.py            # [Err] 에러 코드 및 예외 매핑
+│   │   └── planner_test.py          # [Model] 테스트용 Pydantic 모델
 │   ├── services/
 │   │   ├── __init__.py
-│   │   ├── planner/                 # [Service] V1AI 플래너 LangGraph Nodes
-│   │   │   └── utils/
-│   │   │       ├── time_utils.py    # [Util] 시간 문자열 변환, TimeZone 계산 등 시간 처리 헬퍼
-│   │   │       └── session_utils.py # [Util] 가용 시간(FreeSession) 계산 및 Capacity 산출 헬퍼
-│   │   │   └── nodes/               # [Node] 파이프라인 개별 단계 구현
-│   │   │       ├── node1_structure.py     # [Node 1] 구조 분석: LLM을 이용해 작업 분류(Category) 및 인지 부하(CogLoad) 분석
-│   │   │       ├── node2_importance.py    # [Node 2] 중요도 산정: 규칙 기반(Rule-based) 중요도 및 피로도 점수 계산
-│   │   │       └── node3_chain_generator.py # [Node 3] 체인 생성: LLM을 이용해 최적의 작업 배치 시나리오(Candidate) 생성
-│   │   └── gemini_test_planner_service.py  # [Service] V1 플래너 테스트 (단순 Gemini 호출 및 응답 파싱)
+│   │   ├── personalization_service.py # [Service] 개인화 데이터 처리 서비스
+│   │   ├── gemini_test_planner_service.py # [Service] V1 플래너 테스트 서비스
+│   │   └── planner/                 # [Service] AI 플래너 LangGraph Nodes
+│   │       ├── utils/
+│   │       │   ├── time_utils.py    # [Util] 시간 처리 헬퍼
+│   │       │   └── session_utils.py # [Util] 가용 시간 계산 헬퍼
+│   │       └── nodes/               # [Node] 파이프라인 개별 단계 구현
+│   │           ├── node1_structure.py       # [Node 1] 구조 분석
+│   │           ├── node2_importance.py      # [Node 2] 중요도 산정
+│   │           ├── node3_chain_generator.py # [Node 3] 체인 생성
+│   │           └── node4_chain_judgement.py # [Node 4] 체인 평가 (최적해 선택)
 │   ├── db/                          # [DB] 데이터베이스 연동
 │   │   ├── __init__.py
-│   │   └── supabase_client.py       # [DB] Supabase 클라이언트 설정 및 연결 관리
+│   │   ├── supabase_client.py       # [DB] Supabase 클라이언트 설정
+│   │   └── repositories/            # [DB] 저장소 레이어
+│   │       └── personalization_repository.py # [DB] 개인화 데이터 저장소
 │   └── core/
 │       ├── __init__.py
-│       └── config.py                # [Config] Pydantic BaseSettings 기반 환경 변수 로드 (.env 관리)
-├── requirements.txt                 # [Dependency] 프로젝트 의존성 패키지 목록 (fastapi, google-genai, langgraph 등)
-├── .env                             # [Env] 로컬 실행용 환경 변수 파일 (API Key 등 보안 정보 포함)
-├── .env.example                     # [Env] 환경 변수 템플릿 (필수 설정값 예시)
-└── .env.production                  # [Env] 프로덕션 배포용 환경 변수
+│       └── config.py                # [Config] 환경 변수 로드
+├── tests/                           # [Test] 단위 및 통합 테스트 코드
+│   ├── data/                        # [Data] 테스트용 샘플 JSON 데이터
+│   └── ...                          # [Test] 테스트 코드
+├── requirements.txt                 # [Dependency] 프로젝트 의존성
+├── .env.example                     # [Env] 환경 변수 템플릿
+└── README.md                        # 프로젝트 설명서
 ```
 
 ### V1 - 플래너 생성 Gemini API 테스트

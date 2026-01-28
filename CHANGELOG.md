@@ -44,6 +44,25 @@
 3. **의존성 관리 강화**:
    - `requirements.txt`: `supabase==2.27.2` 등 주요 라이브러리 버전 명시.
 
+### Ingest API 성능 최적화 및 로직 개선
+
+**목적**: 대량의 개인화 데이터(일주일치)를 효율적으로 저장하고, 데이터 정합성을 확보함.
+
+#### 주요 변경 사항
+
+1.  **일주일치 데이터 일괄 처리 (Batch Processing)**:
+    - `PersonalizationRepository`: 단일 요청에 포함된 7일치 플래너 데이터를 `day_plan_id` 기준으로 자동 그룹핑하여 처리.
+    - **Planner Record 자동 생성**: 각 날짜별로 `USER_FINAL` 타입의 부모 레코드를 생성하여 데이터 무결성 보장.
+
+2.  **DB 성능 최적화 (Batch Insert)**:
+    - **Before**: 날짜별 반복 호출 (7일 $\times$ 3회 = 21회 호출)
+    - **After**: 단계별 일괄 저장 (Records $\to$ Tasks $\to$ Histories = 3회 호출)
+    - **효과**: 네트워크 오버헤드 최소화 및 처리 시간 단축 ($0.8s \to 0.47s$).
+
+3.  **데이터 품질 향상**:
+    - **Fill Rate 계산 로직 구현**: `0.0`으로 고정되던 가동률을 `(총 배치 시간 / 하루 가용 시간)` 공식으로 실제 계산하여 저장하도록 개선.
+    - **테스트 데이터 확장**: `personalization_ingest_week_sample.json`을 일주일치(19개 작업)로 확장하고, 사용자 제외(`EXCLUDED by USER`) 케이스 등 다양한 시나리오 추가.
+
 ### Node 3 (Task Chain Generator) 고도화 - 중요도 정규화
 
 **목적**: LLM이 작업 간의 상대적 중요도를 명확히 파악할 수 있도록, 입력되는 중요도 점수(`importanceScore`)를 0~1 범위로 정규화(Min-Max Normalization)하여 제공함. 이를 통해 입력 스케일에 구애받지 않는 강건한 의사결정을 지원함.
