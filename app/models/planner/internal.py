@@ -58,4 +58,5 @@ class PlannerGraphState(BaseModel):
     retry_node3: int = 0
     replan_loops: int = 0
     warnings: List[str] = Field(default_factory=list)
+    fillRate: float = 1.0
 

@@ -4,6 +4,32 @@
 
 ---
 
+## 2026-01-28
+
+### LangGraph 파이프라인 완성 (Node 1 ~ Node 5)
+
+**목적**: AI 플래너 생성 파이프라인의 핵심인 5단계 노드 구현을 모두 완료하고, 결정론적 시간 배정 로직(V1)을 적용하여 신뢰성 있는 플래너를 생성함.
+
+#### 주요 변경 사항
+
+1. **[app/services/planner/nodes/node5_time_assignment.py](app/services/planner/nodes/node5_time_assignment.py)** (신규)
+   - **결정론적 시간 배정 (Deterministic Logic)**: Node 4가 선택한 최적 체인의 시간대별 대기열을 받아, 실제 분 단위 시간을 확정.
+   - **Logic V1 정책 적용**:
+     - **Gap-based Break**: 90분 이상 연속 작업 시 10분간 빈 시간(Gap)을 자동 삽입.
+     - **Dominant TimeZone**: 세션이 여러 시간대에 걸칠 경우, 가장 많이 포함된 시간대를 기준으로 작업 할당.
+     - **Remainder First**: 작업 분할(Splitting) 시 남은 자투리 작업은 다음 가용 세션의 최우선 순위로 배치.
+
+2. **[tests/test_node5.py](tests/test_node5.py)** (신규)
+   - **단위 테스트**: 기본 배정, 작업 분할(Splitting), MaxChunk 초과 시 Gap 삽입, 잔여 작업 제외(Tail Drop) 등 엣지 케이스 검증.
+
+3. **[tests/test_integration_node1_to_node5.py](tests/test_integration_node1_to_node5.py)** (신규)
+   - **전체 파이프라인 통합 테스트**: LLM 구조 분석(Node 1)부터 최종 시간 확정(Node 5)까지 데이터 흐름 검증.
+   - **가시성 확보**: 결과 테이블에 FIXED 작업과 FLEX 작업을 시간순으로 정렬하여 전체 일정 가시화.
+
+4. **관측성 강화 (Logfire)**
+   - **전 구간 적용**: Node 1(구조), Node 2(중요도), Node 3(체인), Node 4(평가), Node 5(배정) 전 구간에 Logfire 적용 완료.
+   - **Input/Result 로깅**: 각 노드의 입출력 데이터를 명시적으로 기록하여 디버깅 및 품질 모니터링 체계 구축.
+
 ## 2026-01-27
 
 ### 개인화 데이터 수집 (Personalization Ingest) API 구현
@@ -155,6 +181,22 @@
    - **[tests/test_node3.py](tests/test_node3.py)**: `NIGHT` 시간대(21:00~23:00) 가용 세션을 추가하여 야간 작업 배분 로직 검증.
    - **통합 테스트 리팩토링**: `tests/test_integration_node1_to_node3.py` 및 `tests/test_integration_node1_to_node4.py`에서 하드코딩된 대역 데이터를 제거하고, `calculate_free_sessions` 유틸리티를 사용하여 `test_request.json` 설정에 따라 동적으로 가용 시간을 계산하도록 개선.
    - **Logfire 관측 영역 확장**: 모든 단위 테스트 및 통합 테스트에 Logfire Span을 추가하여 테스트 실행 과정의 가시성 확보.
+
+### Node 5 Logic Refinement (V1 정책 명확화)
+
+**목적**: 물리적 시간 배정 로직(Node 5)을 V1 요구사항에 맞춰 단순화하고, 결과값의 품질을 개선함.
+
+#### 주요 변경 사항
+
+1. **단일 자식 평탄화 (Single-Child Flattening)**:
+    - 분할 시도가 있었으나 결과적으로 자식 작업이 하나만 생성된 경우(예: Tail Drop), 불필요한 Parent-Child 구조를 제거하고 일반 FLEX 작업으로 자동 변환.
+2. **분할 로직 최적화 (Optimization)**:
+    - **강제 분할(MaxChunk) 제거**: 작업이 세션 내에 물리적으로 들어간다면 시간이 길어도 분할하지 않음 (V2로 연기).
+    - **배치 조건**: 오직 세션 공간이 부족하거나 중간에 FIXED 일정이 있는 경우에만 분할 수행.
+3. **휴식 정책 변경**:
+    - **Intra-task Break 연기**: 작업 도중 쉬는 시간은 V2로 연기하고, 작업 완료 후 휴식(Gap)만 적용하여 타임라인 파편화 방지.
+4. **통합 테스트 출력 개선**:
+    - `test_integration_node1_to_node5.py` 결과 테이블에서 분할된 작업(SUB)을 개별 행으로 시각화하여, FIXED 작업이 그 사이에 끼어있는 시간 순서를 정확히 표현.
 
 ---
 

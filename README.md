@@ -16,11 +16,9 @@ python3 -m venv venv
 
 # 가상환경 활성화 (macOS/Linux)
 source venv/bin/activate
+
 # 가상환경 활성화 (Windows)
 venv\Scripts\activate
-
-# 라이브러리 설치
-pip install -r requirements.txt
 
 ```
 
@@ -63,10 +61,6 @@ cp .env.example .env
 
 ---
 
-
-
-
----
 
 ## 프로젝트 구조
 
@@ -111,7 +105,8 @@ MOLIP-AI/
 │   │           ├── node1_structure.py       # [Node 1] 구조 분석
 │   │           ├── node2_importance.py      # [Node 2] 중요도 산정
 │   │           ├── node3_chain_generator.py # [Node 3] 체인 생성
-│   │           └── node4_chain_judgement.py # [Node 4] 체인 평가 (최적해 선택)
+│   │           ├── node4_chain_judgement.py # [Node 4] 체인 평가 (최적해 선택)
+│   │           └── node5_time_assignment.py # [Node 5] 시간 배정 (최종 확정 - V1: Flattening applied)
 │   ├── db/                          # [DB] 데이터베이스 연동
 │   │   ├── __init__.py
 │   │   ├── supabase_client.py       # [DB] Supabase 클라이언트 설정
@@ -235,6 +230,22 @@ python -m unittest tests/test_node4.py
     - Node 1 -> Node 2 -> Node 3 -> Node 4 파이프라인 통합 테스트
 ```bash
 python -m unittest tests/test_integration_node1_to_node4.py
+```
+
+### V1 - Node 5: 시간 배정 (Time Assignment)
+1. `app/services/planner/nodes/node5_time_assignment.py`
+    - Node 4가 선택한 최적 체인의 대기열을 받아 실제 시간(Start/End)을 확정
+    - **Logic V1**: Gap 휴식(10분), 세션 경계 분할(Splitting on boundary), 단일 자식 평탄화(Flattening) 적용
+    - *참고: MaxChunk 강제 분할 및 작업 도중 휴식은 V2로 연기됨*
+2. `tests/test_node5.py`
+    - Node 5 분할 및 배정 로직 단위 테스트
+```bash
+python -m unittest tests/test_node5.py
+```
+3. `tests/test_integration_node1_to_node5.py`
+    - Node 1 -> Node 5 전체 파이프라인 통합 테스트 (시간 배정 및 분할 검증)
+```bash
+python -m unittest tests/test_integration_node1_to_node5.py
 ```
 
 ---
