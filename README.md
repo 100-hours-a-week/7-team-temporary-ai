@@ -16,9 +16,12 @@ python3 -m venv venv
 
 # 가상환경 활성화 (macOS/Linux)
 source venv/bin/activate
-
 # 가상환경 활성화 (Windows)
 venv\Scripts\activate
+
+# 라이브러리 설치
+pip install -r requirements.txt
+
 ```
 
 ### 2. 패키지 설치
