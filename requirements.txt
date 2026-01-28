@@ -21,3 +21,7 @@ opentelemetry-instrumentation-asgi==0.60b1
 # Database
 supabase==2.27.2
 
+# Test
+pytest==8.4.2
+httpx==0.28.1
+

@@ -11,6 +11,16 @@ MOLIP 프로젝트의 AI 기능 서버입니다.
 ### 1. 가상환경 설정
 
 ```bash
+# 기존 가상환경 삭제
+
+## 가상환경 확인
+ls -d */
+
+## 가상환경 삭제
+rm -rf venv
+```
+
+```bash
 # 가상환경 생성
 python3 -m venv venv
 
@@ -28,10 +38,9 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. 서버 실행
-
+### 3. 테스트 진행
 ```bash
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+pytest
 ```
 
 ### 4. 환경 변수 설정
@@ -40,12 +49,17 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ```bash
 cp .env.example .env
-# .env 파일을 열어 GEMINI_API_KEY 등 필요한 값 설정
 ```
 
 > **Note**: 환경 변수 상세 설명은 [.env.example](.env.example) 파일을 참고하세요.
 
-### 5. 접속
+### 5. 서버 실행
+
+```bash
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### 6. 접속
 
 - Swagger UI: http://localhost:8000/docs
 - Health Check: http://localhost:8000/health
@@ -196,17 +210,17 @@ MOLIP-AI/
     - Node 1의 응답을 처리하여 `PlannerGraphState`를 업데이트
     - `TaskFeature`를 생성하고 `PlannerGraphState`에 저장
     - 재시도 횟수를 기록
-5. `tests/data/test_request.json`
+5. `tests_local/data/test_request.json`
     - Node 1의 응답을 테스트하기 위한 Request 데이터
-6. `tests/test_node1.py`
+6. `tests_local/test_node1.py`
     - Node 1의 응답을 테스트하기 위한 테스트 코드
 ```bash
-python -m unittest tests/test_node1.py
+python -m unittest tests_local/test_node1.py
 ```
-7. `tests/test_node1_fallback.py`
+7. `tests_local/test_node1_fallback.py`
     - Node 1의 폴백(4회 재시도 실패)응답을 테스트하기 위한 테스트 코드
 ```bash
-python -m unittest tests/test_node1_fallback.py
+python -m unittest tests_local/test_node1_fallback.py
 ```
 ---
 
@@ -215,15 +229,15 @@ python -m unittest tests/test_node1_fallback.py
     - Node 1의 결과를 토대로
     - 각 작업별 중요도, 피로도를 산출
     - 이때 개인별 가중치 파라미터가 곱해진다 (개인화 AI는 후에 구현 예정, 현재는 기본값) 
-2. `tests/test_node2.py`
+2. `tests_local/test_node2.py`
     - Node 2의 응답을 테스트하기 위한 테스트 코드
 ```bash
-python -m unittest tests/test_node2.py
+python -m unittest tests_local/test_node2.py
 ```
-3. `tests/test_integration_node1_node2.py`
+3. `tests_local/test_integration_node1_node2.py`
     - Node 1 -> Node 2 통합 테스트
 ```bash
-python -m unittest tests/test_integration_node1_node2.py
+python -m unittest tests_local/test_integration_node1_node2.py
 ```
 ---
 
@@ -236,25 +250,25 @@ python -m unittest tests/test_integration_node1_node2.py
 3. `app/services/planner/nodes/node3_chain_generator.py`
     - LLM 호출 및 재시도(Retry 4회) 로직
     - 실패 시 Fallback(중요도 순 배치) 로직 포함
-4. `tests/test_node3.py`
+4. `tests_local/test_node3.py`
     - 정상 동작 테스트 (Capacity 계산, Real LLM 호출)
 ```bash
-python -m unittest tests/test_node3.py
+python -m unittest tests_local/test_node3.py
 ```
-5. `tests/test_node3_fallback.py`
+5. `tests_local/test_node3_fallback.py`
     - Fallback 로직 테스트 (Mocking을 통한 에러 상황 시뮬레이션)
 ```bash
-python -m unittest tests/test_node3_fallback.py
+python -m unittest tests_local/test_node3_fallback.py
 ```
-6. `tests/test_integration_node1_to_node3.py`
+6. `tests_local/test_integration_node1_to_node3.py`
     - Node 1 -> Node 2 -> Node 3 파이프라인 통합 테스트
 ```bash
-python -m unittest tests/test_integration_node1_to_node3.py
+python -m unittest tests_local/test_integration_node1_to_node3.py
 ```
-7. `tests/test_node3_normalization.py`
+7. `tests_local/test_node3_normalization.py`
     - Node 3 중요도 점수 정규화 로직(0~1) 테스트
 ```bash
-python -m unittest tests/test_node3_normalization.py
+python -m unittest tests_local/test_node3_normalization.py
 ```
 
 ### V1 - Node 4: 체인 평가 (Chain Judgement)
@@ -263,15 +277,15 @@ python -m unittest tests/test_node3_normalization.py
     - **Closure 강제**: 그룹 순서 위반 작업 제거
     - **Overflow Penalty**: 시간대별 가용량 초과 시 페널티 부과
     - **Scoring**: 포함/제외 효용, 피로도, 집중 시간대 정렬 등을 종합 평가
-2. `tests/test_node4.py`
+2. `tests_local/test_node4.py`
     - Node 4 로직 검증을 위한 단위 테스트
 ```bash
-python -m unittest tests/test_node4.py
+python -m unittest tests_local/test_node4.py
 ```
-3. `tests/test_integration_node1_to_node4.py`
+3. `tests_local/test_integration_node1_to_node4.py`
     - Node 1 -> Node 2 -> Node 3 -> Node 4 파이프라인 통합 테스트
 ```bash
-python -m unittest tests/test_integration_node1_to_node4.py
+python -m unittest tests_local/test_integration_node1_to_node4.py
 ```
 
 ### V1 - Node 5: 시간 배정 (Time Assignment)
@@ -279,15 +293,15 @@ python -m unittest tests/test_integration_node1_to_node4.py
     - Node 4가 선택한 최적 체인의 대기열을 받아 실제 시간(Start/End)을 확정
     - **Logic V1**: Gap 휴식(10분), 세션 경계 분할(Splitting on boundary), 단일 자식 평탄화(Flattening) 적용
     - *참고: MaxChunk 강제 분할 및 작업 도중 휴식은 V2로 연기됨*
-2. `tests/test_node5.py`
+2. `tests_local/test_node5.py`
     - Node 5 분할 및 배정 로직 단위 테스트
 ```bash
-python -m unittest tests/test_node5.py
+python -m unittest tests_local/test_node5.py
 ```
-3. `tests/test_integration_node1_to_node5.py`
+3. `tests_local/test_integration_node1_to_node5.py`
     - Node 1 -> Node 5 전체 파이프라인 통합 테스트 (시간 배정 및 분할 검증)
 ```bash
-python -m unittest tests/test_integration_node1_to_node5.py
+python -m unittest tests_local/test_integration_node1_to_node5.py
 ```
 
 ---
@@ -296,10 +310,10 @@ python -m unittest tests/test_integration_node1_to_node5.py
 1. `app/api/v1/endpoints/personalization.py`
     - `POST /ai/v1/personalizations/ingest`
     - 백엔드로부터 사용자의 최종 플래너 및 수정 이력을 수신하여 DB에 저장
-2. `tests/test_personalization_ingest.py`
+2. `tests_local/test_personalization_ingest.py`
     - API 엔드포인트 동작 검증
 ```bash
-python -m unittest tests/test_personalization_ingest.py
+python -m unittest tests_local/test_personalization_ingest.py
 ```
 3. **Swagger UI 테스트**:
     - 서버 실행 후 `/docs` 접속
