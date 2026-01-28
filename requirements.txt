@@ -14,7 +14,9 @@ google-genai==1.47.0
 google-api-core==2.29.0
 
 # Logfire
-logfire[fastapi]
+logfire==4.20.0
+opentelemetry-instrumentation-fastapi==0.60b1
+opentelemetry-instrumentation-asgi==0.60b1
 
 # Database
 supabase==2.27.2

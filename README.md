@@ -31,7 +31,7 @@ pip install -r requirements.txt
 ### 3. 서버 실행
 
 ```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### 4. 환경 변수 설정
