@@ -14,7 +14,7 @@ google-genai==1.47.0
 google-api-core==2.29.0
 
 # Logfire
-logfire==4.20.0
+logfire[fastapi]
 
 # Database
 supabase==2.27.2

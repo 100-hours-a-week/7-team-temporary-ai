@@ -10,6 +10,7 @@ class SubTaskResult(BaseModel):
     endAt: str = Field(..., description="HH:MM")
 
 class AssignmentResult(BaseModel):
+    userId: int
     taskId: int
     dayPlanId: int
     title: str = Field(..., description="원본 작업 제목")

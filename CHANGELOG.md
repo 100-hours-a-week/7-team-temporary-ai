@@ -30,6 +30,14 @@
    - **전 구간 적용**: Node 1(구조), Node 2(중요도), Node 3(체인), Node 4(평가), Node 5(배정) 전 구간에 Logfire 적용 완료.
    - **Input/Result 로깅**: 각 노드의 입출력 데이터를 명시적으로 기록하여 디버깅 및 품질 모니터링 체계 구축.
 
+5. **[app/api/v1/endpoints/planners.py](app/api/v1/endpoints/planners.py)** (신규)
+   - **엔드포인트**: `POST /ai/v1/planners/test` 구현 (LangGraph 파이프라인 전체 연동).
+   - **Dynamic Swagger Example**: `tests/data/test_request.json` 파일을 서버 시작 시 로드하여 Swagger UI 예시 데이터로 자동 설정.
+
+6. **Logfire GenAI Analytics 적용**
+   - **Manual Instrumentation**: `app/llm/gemini_client.py`에 OpenTelemetry Semantic Conventions 적용.
+   - **기능**: LLM 토큰 사용량(비용) 분석, 프롬프트 디버깅(Replay) 대시보드 활성화. (향후 RunPod 등 타 LLM 도입 시 표준 가이드로 활용 가능)
+
 ## 2026-01-27
 
 ### 개인화 데이터 수집 (Personalization Ingest) API 구현

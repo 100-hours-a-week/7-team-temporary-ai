@@ -29,8 +29,9 @@ def node5_time_assignment(state: PlannerGraphState) -> PlannerGraphState:
     # 1. 입력 데이터 준비
     selected_chain_id = state.selectedChainId
     if not selected_chain_id:
-        # 비정상 상태: 체인이 선택되지 않음 -> 빈 결과 반환 (또는 에러 처리)
         return state
+
+    user_id = state.request.user.userId  # userId 확보
 
     candidates = state.chainCandidates
     selected_chain = next((c for c in candidates if c.chainId == selected_chain_id), None)
@@ -115,6 +116,7 @@ def node5_time_assignment(state: PlannerGraphState) -> PlannerGraphState:
                 else:
                     # 새로운 작업 배정 (분할 없음)
                     results.append(AssignmentResult(
+                        userId=user_id,
                         taskId=feature.taskId,
                         dayPlanId=feature.dayPlanId,
                         title=feature.title,
@@ -160,6 +162,7 @@ def node5_time_assignment(state: PlannerGraphState) -> PlannerGraphState:
             else:
                 # 새 부모 생성 (Status=ASSIGNED, but Time=Null)
                 results.append(AssignmentResult(
+                    userId=user_id,
                     taskId=feature.taskId,
                     dayPlanId=feature.dayPlanId,
                     title=feature.title,
@@ -215,6 +218,7 @@ def node5_time_assignment(state: PlannerGraphState) -> PlannerGraphState:
         if tid not in assigned_task_ids:
             feat = task_features[tid]
             results.append(AssignmentResult(
+                userId=user_id,
                 taskId=feat.taskId,
                 dayPlanId=feat.dayPlanId,
                 title=feat.title,

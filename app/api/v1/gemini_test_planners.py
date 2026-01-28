@@ -1,7 +1,7 @@
 """
 AI Planner API Router with Gemini (GEMINI TEST Version)
 
-POST /ai/v1/gemini-test/planners 엔드포인트
+POST /ai/v1/planners 엔드포인트
 """
 
 import logging

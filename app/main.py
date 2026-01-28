@@ -10,8 +10,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.api import v1
+import logfire
 
-VERSION = "26.01.27 - 사용자 개인화 데이터 수집 API 엔드포인트 추가"
+# Logfire 설정 (관측성)
+logfire.configure(send_to_logfire='if-token-present')
+
+VERSION = "26.01.28 - V1 플래너 생성 API (LangGraph Pipeline) 구현 완료"
 
 # 로깅 설정
 logging.basicConfig(
@@ -27,6 +31,9 @@ app = FastAPI(
     version=VERSION,
     debug=settings.debug,
 )
+
+# Logfire FastAPI Instrumentation
+logfire.instrument_fastapi(app)
 
 # CORS 미들웨어 설정
 app.add_middleware(

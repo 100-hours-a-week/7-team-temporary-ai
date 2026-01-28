@@ -61,6 +61,48 @@ cp .env.example .env
 
 ---
 
+## 3. Observability (Logfire)
+
+MOLIP AI 서버는 [Logfire](https://logfire.pydantic.dev)를 통해 전체 API 요청 및 LLM 실행 흐름을 추적합니다.
+
+### 🌟 주요 기능
+1. **Web Server Metrics**: API 응답 속도, 에러율 자동 수집 (`logfire.instrument_fastapi`)
+2. **LLM Analytics**: 토큰 사용량(비용), 프롬프트/응답 디버깅 (`logfire.span`)
+3. **Structured Logging**: SQL 질의 가능한 형태의 로그 저장
+
+### 🛠️ LLM Manual Instrumentation 가이드
+
+`google-genai` 또는 향후 도입될 `RunPod`(로컬 LLM) 등 Logfire가 자동 지원하지 않는 클라이언트를 사용할 경우, 아래와 같이 **수동 계측(Manual Instrumentation)**이 필요합니다. 
+OpenTelemetry GenAI Semantic Conventions를 준수하여 속성을 설정하면 대시보드가 자동으로 활성화됩니다.
+
+```python
+import logfire
+
+# 1. Span 생성 (이름은 자유롭게 지정, 예: "LLM Generation")
+with logfire.span("Gemini Generation") as span:
+    
+    # 2. [Request] 요청 정보 기록
+    span.set_attribute("gen_ai.system", "System Prompt...")         # 시스템 프롬프트
+    span.set_attribute("gen_ai.request.model", "gemini-2.5-flash")  # 사용 모델명
+    span.set_attribute("gen_ai.prompt", "User Input...")            # 사용자 입력 (필수)
+
+    try:
+        # 3. LLM API 호출
+        response = client.generate(...)
+
+        # 4. [Response] 응답 및 사용량 기록
+        # usage_metadata가 있다면 반드시 매핑해줍니다.
+        span.set_attribute("gen_ai.usage.input_tokens", 150)   # 입력 토큰 수
+        span.set_attribute("gen_ai.usage.output_tokens", 45)   # 출력 토큰 수
+        span.set_attribute("gen_ai.completion", "AI Response...") # AI 응답 텍스트 (필수)
+        
+    except Exception as e:
+        # 예외 발생 시 Span이 자동으로 에러를 캡처합니다.
+        raise e
+```
+
+---
+
 
 ## 프로젝트 구조
 
