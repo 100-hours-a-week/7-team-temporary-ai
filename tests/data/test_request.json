@@ -7,14 +7,6 @@
     "startArrange": "08:00",
     "schedules": [
         {
-            "taskId": 1001,
-            "dayPlanId": 1,
-            "title": "기상 및 아침 식사",
-            "type": "FIXED",
-            "startAt": "07:30",
-            "endAt": "08:30"
-        },
-        {
             "taskId": 1002,
             "dayPlanId": 1,
             "title": "점심 식사",
