@@ -4,6 +4,42 @@
 
 ---
 
+
+## 2026-01-29
+
+### Logfire 환경 변수 설정 공식화
+
+**목적**: 클라우드 및 협업 환경에서 Logfire 연결을 위한 인증 토큰(`LOGFIRE_TOKEN`) 관리 체계를 수립하고, 코드 차원에서 이를 명시적으로 지원함.
+
+#### 주요 변경 사항
+
+1. **환경 변수 파일 업데이트**:
+   - `.env`, `.env.example`, `.env.production`, `.env.staging` 파일에 `LOGFIRE_TOKEN` 변수 추가.
+   - 로컬 개발 및 배포 환경별로 유연하게 토큰을 주입할 수 있는 기반 마련.
+
+2. **[app/core/config.py](app/core/config.py)**
+   - **설정 추가**: `Settings` 클래스에 `logfire_token: Optional[str]` 필드 추가.
+   - **Configuration as Code**: 외부에서 주입된 토큰을 앱 설정 객체를 통해 접근 가능하도록 개선.
+
+### DB 연동 (Planner Draft & User Weights)
+
+**목적**: AI 플래너 생성 결과(`AI_DRAFT`)를 데이터베이스에 저장하여, 향후 개인화 학습(IRL) 및 성과 분석을 위한 데이터를 축적함. (사용자 가중치 조회는 현재 기본값 사용)
+
+#### 주요 변경 사항
+
+1. **[app/db/repositories/planner_repository.py](app/db/repositories/planner_repository.py)** (신규)
+   - **기능**: `save_ai_draft` 메서드 구현 (FLEX 및 FIXED 작업 모두 저장).
+   - **데이터 흐름**: `PlannerGraphState` → `planner_records` (메타데이터) → `record_tasks` (작업 상세) 순서로 저장.
+   - **통계 저장**: 플래너 생성 시점의 `fill_rate`, `assigned_count` 등 주요 지표 자동 산출 및 저장.
+
+2. **[app/api/v1/endpoints/planners.py](app/api/v1/endpoints/planners.py)**
+   - **비동기 저장**: `POST /ai/v1/planners/test` 요청 처리 후, `BackgroundTasks`를 통해 사용자 응답 지연 없이 DB 저장 로직을 실행하도록 개선.
+
+3. **[tests_local/test_planner_repository.py](tests_local/test_planner_repository.py)** (신규)
+   - **검증**: Mock 데이터를 활용하여 `planner_records` 및 `record_tasks` 테이블에 데이터가 정상적으로 INSERT 되는지 확인하는 통합 테스트 작성.
+
+---
+
 ## 2026-01-28
 
 ### LangGraph 파이프라인 완성 (Node 1 ~ Node 5)
@@ -37,6 +73,29 @@
 6. **Logfire GenAI Analytics 적용**
    - **Manual Instrumentation**: `app/llm/gemini_client.py`에 OpenTelemetry Semantic Conventions 적용.
    - **기능**: LLM 토큰 사용량(비용) 분석, 프롬프트 디버깅(Replay) 대시보드 활성화. (향후 RunPod 등 타 LLM 도입 시 표준 가이드로 활용 가능)
+
+### CI/CD 테스트 환경 구축 및 클라우드 배포 안정성 확보
+
+**목적**: 클라우드(AWS, RunPod 등) 배포 환경에서 데이터 손상 없이 안전하게 실행 가능한 자동화 테스트 슈트를 구축하고, 로컬 개발 환경과 명확히 격리함.
+
+#### 주요 변경 사항
+
+1.  **클라우드 전용 테스트 (Cloud-Safe Tests) 구현**:
+    - **[tests/test_connectivity.py](tests/test_connectivity.py)** (신규):
+        - **네트워크 점검**: Gemini API 및 Supabase DB에 대한 단순 Ping/Auth 테스트 수행.
+        - **비파괴적 검증**: 실제 데이터를 수정하지 않고 연결 상태만 확인함으로써 운영 환경에서도 안전하게 실행 가능.
+    - **[tests/test_logic_mock.py](tests/test_logic_mock.py)** (신규):
+        - **Mock 기반 검증**: `unittest.mock`을 활용하여 외부 LLM 호출 없이 Node 1~5 전체 파이프라인 로직을 시뮬레이션.
+        - **무비용/고속 실행**: 토큰 비용 발생 없이 핵심 비즈니스 로직(Pydantic 모델 검증, 데이터 흐름 등)을 반복 테스트 가능.
+
+2.  **테스트 구조 이원화 (격리 전략)**:
+    - **`tests/`**: CI/CD 파이프라인 및 배포 직후 실행할 안전한 테스트만 포함.
+    - **`tests_local/`**: 실제 DB에 Write하거나 유료 LLM을 사용하는 로컬 전용 테스트들을 이동.
+    - **[.gitignore](.gitignore) 업데이트**: `tests_local/` 폴더를 제외 처리하여 실수로 운영 환경에 무거운 테스트 코드가 배포되는 것을 원천 차단.
+
+3.  **의존성 및 실행 환경 표준화**:
+    - **[requirements.txt](requirements.txt)**: `pytest`, `httpx` 등 테스트 실행에 필수적인 라이브러리 명시.
+    - **실행 편의성**: `pytest tests/` 명령어 하나로 클라우드 배포 시 필수 점검 사항(연결성+로직)을 한 번에 검증 가능하도록 구성.
 
 ## 2026-01-27
 

@@ -2,7 +2,7 @@
 
 MOLIP 프로젝트의 AI 기능 서버입니다.
 
-## 작성자 : ![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=GitHub&logoColor=white) [swoo64](https://github.com/swoo64)
+## 작성자 : ![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=GitHub&logoColor=white) [max.ji](https://github.com/Max-JI64/)
 
 ---
 
@@ -40,7 +40,7 @@ pip install -r requirements.txt
 
 ### 3. 테스트 진행
 ```bash
-pytest
+pytest tests/
 ```
 
 ### 4. 환경 변수 설정
@@ -75,7 +75,7 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ---
 
-## 3. Observability (Logfire)
+## Observability (Logfire)
 
 MOLIP AI 서버는 [Logfire](https://logfire.pydantic.dev)를 통해 전체 API 요청 및 LLM 실행 흐름을 추적합니다.
 
@@ -83,37 +83,6 @@ MOLIP AI 서버는 [Logfire](https://logfire.pydantic.dev)를 통해 전체 API 
 1. **Web Server Metrics**: API 응답 속도, 에러율 자동 수집 (`logfire.instrument_fastapi`)
 2. **LLM Analytics**: 토큰 사용량(비용), 프롬프트/응답 디버깅 (`logfire.span`)
 3. **Structured Logging**: SQL 질의 가능한 형태의 로그 저장
-
-### 🛠️ LLM Manual Instrumentation 가이드
-
-`google-genai` 또는 향후 도입될 `RunPod`(로컬 LLM) 등 Logfire가 자동 지원하지 않는 클라이언트를 사용할 경우, 아래와 같이 **수동 계측(Manual Instrumentation)**이 필요합니다. 
-OpenTelemetry GenAI Semantic Conventions를 준수하여 속성을 설정하면 대시보드가 자동으로 활성화됩니다.
-
-```python
-import logfire
-
-# 1. Span 생성 (이름은 자유롭게 지정, 예: "LLM Generation")
-with logfire.span("Gemini Generation") as span:
-    
-    # 2. [Request] 요청 정보 기록
-    span.set_attribute("gen_ai.system", "System Prompt...")         # 시스템 프롬프트
-    span.set_attribute("gen_ai.request.model", "gemini-2.5-flash")  # 사용 모델명
-    span.set_attribute("gen_ai.prompt", "User Input...")            # 사용자 입력 (필수)
-
-    try:
-        # 3. LLM API 호출
-        response = client.generate(...)
-
-        # 4. [Response] 응답 및 사용량 기록
-        # usage_metadata가 있다면 반드시 매핑해줍니다.
-        span.set_attribute("gen_ai.usage.input_tokens", 150)   # 입력 토큰 수
-        span.set_attribute("gen_ai.usage.output_tokens", 45)   # 출력 토큰 수
-        span.set_attribute("gen_ai.completion", "AI Response...") # AI 응답 텍스트 (필수)
-        
-    except Exception as e:
-        # 예외 발생 시 Span이 자동으로 에러를 캡처합니다.
-        raise e
-```
 
 ---
 
@@ -179,153 +148,3 @@ MOLIP-AI/
 └── README.md                        # 프로젝트 설명서
 ```
 
-### V1 - 플래너 생성 Gemini API 테스트
-1. `app/models/planner_test.py`
-    - API의 Request/Response 스키마 정의
-    - `PlannerGenerateRequestTest`, `PlannerGenerateResponseTest`
-2. `app/services/gemini_test_planner_service.py`
-    - Request를 통해 Gemini에 입력할 Prompt 정의
-    - Gemini API 호출 및 응답 json 파싱    
-3. `app/api/v1/gemini_test_planners.py`
-    - API 엔드포인트 연결 `ai/v1/planners`
-        - 백엔드 테스트용 API, 추후 LangGraph 완성 뒤 대체
-    - Request를 통해 Gemini API 호출
-    - 응답을 Response로 변환
-
----
-
-### V1 - Node 1: 구조 분석
-1. `app/llm/gemini_client.py`
-    - Gemini Client 초기화
-    - Gemini API 호출 및 응답 json 파싱
-2. `app/llm/prompts/node1_prompt.py`
-    - Node 1에 사용될 Prompt 정의
-    - 입력에 필요한 정보만 추출하여 포멧에 맡게 변환
-3. `app/models/planner/internal.py`
-    - Node 1의 응답을 처리하기 위한 모델 정의
-    - `PlannerGraphState` : LangGraph의 State, 모든 Node를 관통함
-    - `TaskFeature` : Task의 Feature를 나타내는 모델, Node 1의 응답을 처리하여 생성
-        - `taskId`, `dayPlanId`, `title`, `type`, `category`, `cognitiveLoad`, `groupId`, `groupLabel`, `orderInGroup`
-4. `app/services/planner/nodes/node1_structure.py`
-    - Node 1의 응답을 처리하여 `PlannerGraphState`를 업데이트
-    - `TaskFeature`를 생성하고 `PlannerGraphState`에 저장
-    - 재시도 횟수를 기록
-5. `tests_local/data/test_request.json`
-    - Node 1의 응답을 테스트하기 위한 Request 데이터
-6. `tests_local/test_node1.py`
-    - Node 1의 응답을 테스트하기 위한 테스트 코드
-```bash
-python -m unittest tests_local/test_node1.py
-```
-7. `tests_local/test_node1_fallback.py`
-    - Node 1의 폴백(4회 재시도 실패)응답을 테스트하기 위한 테스트 코드
-```bash
-python -m unittest tests_local/test_node1_fallback.py
-```
----
-
-### V1 - Node 2: 중요도 산출
-1. `app/llm/prompts/node2_importance.py`
-    - Node 1의 결과를 토대로
-    - 각 작업별 중요도, 피로도를 산출
-    - 이때 개인별 가중치 파라미터가 곱해진다 (개인화 AI는 후에 구현 예정, 현재는 기본값) 
-2. `tests_local/test_node2.py`
-    - Node 2의 응답을 테스트하기 위한 테스트 코드
-```bash
-python -m unittest tests_local/test_node2.py
-```
-3. `tests_local/test_integration_node1_node2.py`
-    - Node 1 -> Node 2 통합 테스트
-```bash
-python -m unittest tests_local/test_integration_node1_node2.py
-```
----
-
-### V1 - Node 3: 후보 체인 생성
-1. `app/llm/prompts/node3_prompt.py`
-    - Node 2의 결과와 시간대별 가용 용량(Capacity)을 입력으로 받아
-    - 4~6개의 후보 체인(Chain Candidates)을 생성하는 프롬프트
-2. `app/services/planner/utils/session_utils.py`
-    - 자유 배치 세션(FreeSession)별 시간대의 가용 용량(Capacity)을 계산
-3. `app/services/planner/nodes/node3_chain_generator.py`
-    - LLM 호출 및 재시도(Retry 4회) 로직
-    - 실패 시 Fallback(중요도 순 배치) 로직 포함
-4. `tests_local/test_node3.py`
-    - 정상 동작 테스트 (Capacity 계산, Real LLM 호출)
-```bash
-python -m unittest tests_local/test_node3.py
-```
-5. `tests_local/test_node3_fallback.py`
-    - Fallback 로직 테스트 (Mocking을 통한 에러 상황 시뮬레이션)
-```bash
-python -m unittest tests_local/test_node3_fallback.py
-```
-6. `tests_local/test_integration_node1_to_node3.py`
-    - Node 1 -> Node 2 -> Node 3 파이프라인 통합 테스트
-```bash
-python -m unittest tests_local/test_integration_node1_to_node3.py
-```
-7. `tests_local/test_node3_normalization.py`
-    - Node 3 중요도 점수 정규화 로직(0~1) 테스트
-```bash
-python -m unittest tests_local/test_node3_normalization.py
-```
-
-### V1 - Node 4: 체인 평가 (Chain Judgement)
-1. `app/services/planner/nodes/node4_chain_judgement.py`
-    - Node 3에서 생성된 후보 체인 중 최적의 체인을 선택
-    - **Closure 강제**: 그룹 순서 위반 작업 제거
-    - **Overflow Penalty**: 시간대별 가용량 초과 시 페널티 부과
-    - **Scoring**: 포함/제외 효용, 피로도, 집중 시간대 정렬 등을 종합 평가
-2. `tests_local/test_node4.py`
-    - Node 4 로직 검증을 위한 단위 테스트
-```bash
-python -m unittest tests_local/test_node4.py
-```
-3. `tests_local/test_integration_node1_to_node4.py`
-    - Node 1 -> Node 2 -> Node 3 -> Node 4 파이프라인 통합 테스트
-```bash
-python -m unittest tests_local/test_integration_node1_to_node4.py
-```
-
-### V1 - Node 5: 시간 배정 (Time Assignment)
-1. `app/services/planner/nodes/node5_time_assignment.py`
-    - Node 4가 선택한 최적 체인의 대기열을 받아 실제 시간(Start/End)을 확정
-    - **Logic V1**: Gap 휴식(10분), 세션 경계 분할(Splitting on boundary), 단일 자식 평탄화(Flattening) 적용
-    - *참고: MaxChunk 강제 분할 및 작업 도중 휴식은 V2로 연기됨*
-2. `tests_local/test_node5.py`
-    - Node 5 분할 및 배정 로직 단위 테스트
-```bash
-python -m unittest tests_local/test_node5.py
-```
-3. `tests_local/test_integration_node1_to_node5.py`
-    - Node 1 -> Node 5 전체 파이프라인 통합 테스트 (시간 배정 및 분할 검증)
-```bash
-python -m unittest tests_local/test_integration_node1_to_node5.py
-```
-
----
-
-### V1 - 개인화 데이터 수집 (Personalization Ingest)
-1. `app/api/v1/endpoints/personalization.py`
-    - `POST /ai/v1/personalizations/ingest`
-    - 백엔드로부터 사용자의 최종 플래너 및 수정 이력을 수신하여 DB에 저장
-2. `tests_local/test_personalization_ingest.py`
-    - API 엔드포인트 동작 검증
-```bash
-python -m unittest tests_local/test_personalization_ingest.py
-```
-3. **Swagger UI 테스트**:
-    - 서버 실행 후 `/docs` 접속
-    - `POST /ai/v1/personalizations/ingest` 클릭
-    - **Example Value**가 일주일치 샘플 데이터로 자동 채워짐
-    - **Execute** 버튼 클릭으로 즉시 테스트 가능
-
-
----
-## 참고 문서
-
-- [api명세서.md](api명세서.md) - API 명세서
-- [CHANGELOG.md](CHANGELOG.md) - 개발 진행 상황
-- [CLAUDE.md](CLAUDE.md) - 개발 가이드
-- [CLOUD_DEPLOYMENT_INFO.md](CLOUD_DEPLOYMENT_INFO.md) - 클라우드 배포 가이드

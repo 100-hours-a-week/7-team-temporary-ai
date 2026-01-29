@@ -13,7 +13,7 @@ from app.api import v1
 import logfire
 
 # Logfire 설정 (관측성)
-logfire.configure(send_to_logfire='if-token-present')
+logfire.configure(token=settings.logfire_token, send_to_logfire='if-token-present')
 
 VERSION = "26.01.28 - V1 플래너 생성 API (LangGraph Pipeline) 구현 완료"
 
