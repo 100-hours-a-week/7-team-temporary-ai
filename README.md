@@ -107,8 +107,8 @@ MOLIP-AI/
 │   │   ├── __init__.py
 │   │   └── v1/
 │   │       ├── __init__.py          # [API] V1 라우터 통합 (endpoints 하위 라우터들 포함)
-│   │       ├── gemini_test_planners.py  # [API] V1 Gemini 플래너 생성 엔드포인트 (POST /ai/v1/planners)
 │   │       └── endpoints/           # [API] 주제별 엔드포인트 구현 (v1)
+│   │           ├── planners.py        # [API] V1 플래너 생성 (POST /ai/v1/planners)
 │   │           └── personalization.py # [API] 개인화 데이터 수집 (POST /ai/v1/personalizations/ingest)
 │   ├── llm/                         # [LLM] LLM 연동 및 프롬프트 관리
 │   │   ├── __init__.py
@@ -126,11 +126,9 @@ MOLIP-AI/
 │   │   │   ├── internal.py          # [Inner] LangGraph State 모델
 │   │   │   ├── weights.py           # [Conf] 개인화 가중치 파라미터 모델
 │   │   │   └── errors.py            # [Err] 에러 코드 및 예외 매핑
-│   │   └── planner_test.py          # [Model] 테스트용 Pydantic 모델
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── personalization_service.py # [Service] 개인화 데이터 처리 서비스
-│   │   ├── gemini_test_planner_service.py # [Service] V1 플래너 테스트 서비스
 │   │   └── planner/                 # [Service] AI 플래너 LangGraph Nodes
 │   │       ├── utils/
 │   │       │   ├── time_utils.py    # [Util] 시간 처리 헬퍼

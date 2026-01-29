@@ -12,6 +12,11 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
 - **원인**: `langsmith` 0.5.0 이상 버전은 Python 3.10 이상을 요구함. 현재 프로젝트는 Python 3.9 환경.
 - **해결**: 버전을 명시하지 않음(`langsmith`)으로써 `pip`가 Python 3.9와 호환되는 마지막 버전(0.4.x)을 자동으로 찾아서 설치하도록 변경.
 
+### 2. Refactoring 중 __init__.py NameError
+- **현상**: 파일 정리 후 검증 스크립트 실행 시 `NameError: name 'router' is not defined` 발생.
+- **원인**: `app/api/v1/gemini_test_planners.py` 삭제 과정에서 `__init__.py`의 `router = APIRouter()` 초기화 라인을 실수로 함께 삭제함.
+- **해결**: `APIRouter` 초기화 코드 및 누락된 `import` 문을 복구하여 해결.
+
 ### 2. LangSmith 데이터 전송 실패 (macOS LibreSSL 이슈)
 - **현상**: 연결 테스트 스크립트 실행 시 `NotOpenSSLWarning`이 발생하며 대시보드에 로그가 보이지 않음.
 - **원인**: macOS의 기본 `LibreSSL`과 `urllib3` v2 버전 간의 호환성 문제로 HTTPS 요청이 차단됨.

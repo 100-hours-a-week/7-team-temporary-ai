@@ -19,7 +19,7 @@ import logfire
 # Logfire 설정 (관측성)
 logfire.configure(token=settings.logfire_token, send_to_logfire='if-token-present')
 
-VERSION = "26.01.29 - V1 플래너 생성 API DB 연동 완료"
+VERSION = "26.01.29 - POST /ai/v1/planners 배포 완료"
 
 # 로깅 설정
 logging.basicConfig(

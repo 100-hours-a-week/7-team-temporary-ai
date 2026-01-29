@@ -7,7 +7,7 @@ from app.services.personalization_service import PersonalizationService
 router = APIRouter()
 service = PersonalizationService()
 
-# 테스트 데이터 로드 함수
+# 예시 데이터 로드 함수
 def load_example_data():
     current_dir = os.path.dirname(os.path.abspath(__file__))
     # 프로젝트 루트 경로 찾기 (app/api/v1/endpoints -> app/api/v1 -> app/api -> app -> PROJECT_ROOT)

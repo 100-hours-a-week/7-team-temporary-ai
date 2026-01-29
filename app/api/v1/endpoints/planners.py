@@ -18,28 +18,28 @@ from pathlib import Path
 
 router = APIRouter()
 
-# Load Test Request Example
+# Load Example Request
 # Calculate Project Root: app/api/v1/endpoints/planners.py -> ... -> MOLIP-AI
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent
-TEST_DATA_PATH = BASE_DIR / "tests" / "data" / "test_request.json"
+EXAMPLE_DATA_PATH = BASE_DIR / "tests" / "data" / "test_request.json"
 
 try:
-    with open(TEST_DATA_PATH, "r", encoding="utf-8") as f:
-        TEST_REQUEST_EXAMPLE = json.load(f)
+    with open(EXAMPLE_DATA_PATH, "r", encoding="utf-8") as f:
+        REQUEST_EXAMPLE = json.load(f)
 except Exception as e:
     print(f"WARNING: Failed to load test_request.json for Swagger example: {e}")
-    TEST_REQUEST_EXAMPLE = {}
+    REQUEST_EXAMPLE = {}
 
 @router.post("", response_model=PlannerResponse)
 async def generate_planner(
     background_tasks: BackgroundTasks,
     request: ArrangementState = Body(
         ...,
-        example=TEST_REQUEST_EXAMPLE
+        example=REQUEST_EXAMPLE
     )
 ):
     """
-    [Test] LangGraph Pipeline-based Planner Generation (V1)
+    LangGraph Pipeline-based Planner Generation (V1)
     """
     start_time = time.time()
     trace_id = str(uuid.uuid4())

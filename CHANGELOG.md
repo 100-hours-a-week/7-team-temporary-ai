@@ -7,6 +7,26 @@
 
 ## 2026-01-29
 
+### API 리팩토링 및 Production 배포 (Endpoint Promotion)
+
+**목적**: 검증이 완료된 LangGraph 기반 플래너 생성 로직을 메인 엔드포인트(`/ai/v1/planners`)로 승격시키고, 테스트용 레거시 코드 및 파일을 정리하여 운영 환경 배포 준비를 마침.
+
+#### 주요 변경 사항
+
+1. **[app/api/v1/endpoints/planners.py](app/api/v1/endpoints/planners.py)**
+   - **엔드포인트 승격**: `/test` 경로 제거 → `POST /ai/v1/planners` (메인 엔드포인트로 변경).
+   - **Production Ready**: `TEST_` 접두사가 붙은 변수명을 `EXAMPLE_` 등으로 변경하고, 테스트용 주석 제거.
+   - **에러 핸들링 통합**: `app/models/planner/errors.py`를 활용하여 예외 발생 시 표준화된 JSON 에러 응답(`errorCode`, `traceId` 포함) 반환.
+
+2. **Legacy Cleanup (삭제)**
+   - `app/api/v1/gemini_test_planners.py`: 구버전 API 삭제.
+   - `app/models/planner_test.py`: 구버전 모델 삭제.
+   - `app/services/gemini_test_planner_service.py`: 구버전 서비스 삭제.
+   - **[app/api/v1/__init__.py](app/api/v1/__init__.py)**: 삭제된 라우터 제거 및 통합 라우터 구조 정리.
+
+3. **[app/models/planner/response.py](app/models/planner/response.py)**
+   - **필드 확장**: `errorCode`, `details`, `traceId` 필드 추가로 에러 상황에 대한 응답 규격 강화.
+
 ### 10분 단위 시간 배정 (Time Granularity) 적용
 
 **목적**: 플래너의 가독성을 높이고 사용자 경험을 개선하기 위해, 모든 AI 배정 작업(FLEX)의 시간 단위를 10분(10, 20, 30...)으로 통일함.
