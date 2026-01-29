@@ -23,6 +23,11 @@ def calculate_free_sessions(
     # If end time is smaller than start (next day), add 24h (1440 min)
     if end_min < start_min:
         end_min += 1440
+        
+    # [Constraint] Cap at 24:00 (1440 min)
+    # Dawn/Early morning planning is not supported yet
+    if end_min > 1440:
+        end_min = 1440
 
     # Sort by start time
     valid_fixed = []

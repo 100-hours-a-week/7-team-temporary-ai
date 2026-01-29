@@ -40,18 +40,17 @@ def node2_importance(state: PlannerGraphState) -> PlannerGraphState:
         if not original_task:
             continue
             
-        # 카테고리가 "ERROR"일 경우 해당 작업은 제거
-        if feature.category == "ERROR":
-            continue
-
+        importance = 0.0
         # 1. 중요도 계산
-        # importanceScore = (focusLevel * w_focus) + (isUrgent ? w_urgent : 0) + w_category.get(category, 0)
-        focus_level = original_task.focusLevel if original_task.focusLevel is not None else 5
-        is_urgent_score = weights.w_urgent if original_task.isUrgent else 0.0
-        category_score = weights.w_category.get(feature.category, 0.0) # 각 카테고리별로 가중치가 저장되어있음
-        
-        # 중요도 계산
-        importance = (focus_level * weights.w_focus) + is_urgent_score + category_score
+        if feature.category == "ERROR":
+            # ERROR 카테고리는 최하위 중요도 부여 및 계산 건너뜀
+            importance = -1.0
+        else:
+            # importanceScore = (focusLevel * w_focus) + (isUrgent ? w_urgent : 0) + w_category.get(category, 0)
+            focus_level = original_task.focusLevel if original_task.focusLevel is not None else 5
+            is_urgent_score = weights.w_urgent if original_task.isUrgent else 0.0
+            category_score = weights.w_category.get(feature.category, 0.0)
+            importance = (focus_level * weights.w_focus) + is_urgent_score + category_score
         
         # 2. 예상 시간 파라미터
         est_range = original_task.estimatedTimeRange

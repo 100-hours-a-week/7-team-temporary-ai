@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     
     # Logging
     log_level: str = "INFO" # 로그의 상세 수준
+    logfire_token: Optional[str] = None # Logfire 토큰
 
     # 환경 변수에서 콤마로 구분된 문자열이 들어오면 파이썬 리스트 형태로 변환
     @field_validator("cors_origins", mode="before")

@@ -5,13 +5,21 @@ FastAPI 애플리케이션 진입점
 """
 
 import logging
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# .env 파일 로드 (LangSmith 등 환경변수 적용)
+load_dotenv()
+
 from app.core.config import settings
 from app.api import v1
+import logfire
 
-VERSION = "0.1.1 (26.01.25 - Gemini Test - request, response 구조 에러 수정)"
+# Logfire 설정 (관측성)
+logfire.configure(token=settings.logfire_token, send_to_logfire='if-token-present')
+
+VERSION = "26.01.29 - POST /ai/v1/planners 배포 완료"
 
 # 로깅 설정
 logging.basicConfig(
@@ -27,6 +35,9 @@ app = FastAPI(
     version=VERSION,
     debug=settings.debug,
 )
+
+# Logfire FastAPI Instrumentation
+logfire.instrument_fastapi(app)
 
 # CORS 미들웨어 설정
 app.add_middleware(

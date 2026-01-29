@@ -2,13 +2,23 @@
 
 MOLIP 프로젝트의 AI 기능 서버입니다.
 
-## 작성자 : ![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=GitHub&logoColor=white) [swoo64](https://github.com/swoo64)
+## 작성자 : ![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=GitHub&logoColor=white) [max.ji](https://github.com/Max-JI64/)
 
 ---
 
 ## 로컬 실행 방법
 
 ### 1. 가상환경 설정
+
+```bash
+# 기존 가상환경 삭제
+
+## 가상환경 확인
+ls -d */
+
+## 가상환경 삭제
+rm -rf venv
+```
 
 ```bash
 # 가상환경 생성
@@ -19,6 +29,7 @@ source venv/bin/activate
 
 # 가상환경 활성화 (Windows)
 venv\Scripts\activate
+
 ```
 
 ### 2. 패키지 설치
@@ -27,10 +38,10 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. 서버 실행
-
+### 3. 테스트 진행
 ```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# 약 3초 소요
+pytest tests/
 ```
 
 ### 4. 환경 변수 설정
@@ -39,12 +50,17 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ```bash
 cp .env.example .env
-# .env 파일을 열어 GEMINI_API_KEY 등 필요한 값 설정
 ```
 
 > **Note**: 환경 변수 상세 설명은 [.env.example](.env.example) 파일을 참고하세요.
 
-### 5. 접속
+### 5. 서버 실행
+
+```bash
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### 6. 접속
 
 - Swagger UI: http://localhost:8000/docs
 - Health Check: http://localhost:8000/health
@@ -60,10 +76,40 @@ cp .env.example .env
 
 ---
 
+## 주요 플래너 로직 (Core Planner Logic)
 
+MOLIP AI 플래너는 정교한 스케줄링을 위해 다음과 같은 세부 로직을 포함합니다.
+
+1. **부모 작업(Container) 자동 필터링**
+   - 하위 작업(Sub-tasks)이 존재하는 부모 작업은 실제 수행 시간이 필요한 실무 작업이 아닌 '컨테이너(그룹)'로 간주합니다.
+   - 플래너 내부 분석(Node 1~4) 및 최종 시간 배정(Node 5) 단계에서 자동으로 필터링되어 결과에 중복 노출되지 않습니다.
+
+2. **비정상 작업(ERROR) 처리**
+   - Node 1(구조 분석)에서 "ERROR" 카테고리로 분류된 작업(예: "asdf", "ㅁㄴㅇㄹ" 등 무의미한 입력)은 스케줄링 엔진에 의해 무시됩니다.
+   - 하지만 사용자가 입력한 데이터의 누락을 방지하기 위해, 최종 API 응답에는 `EXCLUDED` 상태로 포함되어 반환됩니다.
+
+---
+
+## Observability (Logfire)
+
+MOLIP AI 서버는 [Logfire](https://logfire.pydantic.dev)를 통해 전체 API 요청 및 LLM 실행 흐름을 추적합니다.
+
+### 🌟 주요 기능
+1. **Web Server Metrics**: API 응답 속도, 에러율 자동 수집 (`logfire.instrument_fastapi`)
+2. **LLM Analytics**: 토큰 사용량(비용), 프롬프트/응답 디버깅 (`logfire.span`)
+3. **Structured Logging**: SQL 질의 가능한 형태의 로그 저장
+
+## LLM Debugging (LangSmith)
+
+복잡한 LangGraph 파이프라인의 디버깅을 위해 로컬 개발 환경에서는 [LangSmith](https://smith.langchain.com/)를 병행 사용합니다.
+
+- **설정**: `.env` 파일에 `LANGCHAIN_TRACING_V2=true` 및 API Key가 설정되어 있어야 합니다.
+- **용도**: 로컬에서 실행되는 LLM의 입력(Prompt)과 출력(Response), Token 사용량을 상세하게 추적.
+- **주의**: 배포 환경(AWS 등)에서는 비용 및 성능 이슈 방지를 위해 환경 변수를 제거하여 비활성화합니다.
 
 
 ---
+
 
 ## 프로젝트 구조
 
@@ -75,178 +121,76 @@ MOLIP-AI/
 │   ├── api/
 │   │   ├── __init__.py
 │   │   └── v1/
-│   │       ├── __init__.py          # [API] V1 라우터 통합 (gemini_test_planners 등 포함)
-│   │       └── gemini_test_planners.py  # [API] V1 Gemini 플래너 생성 엔드포인트 (POST /ai/v1/planners). 에러 핸들링 및 서비스 호출
+│   │       ├── __init__.py          # [API] V1 라우터 통합 (endpoints 하위 라우터들 포함)
+│   │       └── endpoints/           # [API] 주제별 엔드포인트 구현 (v1)
+│   │           ├── planners.py        # [API] V1 플래너 생성 (POST /ai/v1/planners)
+│   │           └── personalization.py # [API] 개인화 데이터 수집 (POST /ai/v1/personalizations/ingest)
 │   ├── llm/                         # [LLM] LLM 연동 및 프롬프트 관리
 │   │   ├── __init__.py
 │   │   ├── gemini_client.py         # [Client] V1 Gemini(2.5-flash-lite) 클라이언트 래퍼
 │   │   └── prompts/
 │   │       ├── __init__.py
-│   │       ├── node1_prompt.py      # [Prompt] Node 1 (구조 분석)용 시스템 프롬프트 및 데이터 포맷팅
-│   │       └── node3_prompt.py      # [Prompt] Node 3 (체인 생성)용 시스템 프롬프트 및 COT 유도
+│   │       ├── node1_prompt.py      # [Prompt] Node 1 (구조 분석)용 프롬프트
+│   │       └── node3_prompt.py      # [Prompt] Node 3 (체인 생성)용 프롬프트
 │   ├── models/
 │   │   ├── __init__.py
-│   │   ├── planner/                 # [Model] V1 AI 플래너 도메인 모델
-│   │   │   ├── request.py           # [Req] API 요청 스키마 (ArrangementState, ScheduleItem 등) - 입력 검증
-│   │   │   ├── response.py          # [Res] API 응답 스키마 (AssignmentResult 등) - 클라이언트 반환 
-│   │   │   ├── internal.py          # [Inner] LangGraph State 모델 (PlannerGraphState, TaskFeature) - 노드 간 데이터 전달
-│   │   │   ├── weights.py           # [Conf] 개인화 가중치 파라미터 모델 (WeightParams) - 중요도/피로도 산식 계수
-│   │   │   └── errors.py            # [Err] 에러 코드(Enum) 및 예외 매핑 헬퍼 (PlannerErrorCode)
-│   │   └── planner_test.py          # [Model] V1 테스트용 Pydantic 모델
+│   │   ├── personalization.py        # [Model] 개인화 데이터 수집 요청/응답 모델
+│   │   ├── planner/                 # [Model] AI 플래너 도메인 모델
+│   │   │   ├── request.py           # [Req] API 요청 스키마
+│   │   │   ├── response.py          # [Res] API 응답 스키마
+│   │   │   ├── internal.py          # [Inner] LangGraph State 모델
+│   │   │   ├── weights.py           # [Conf] 개인화 가중치 파라미터 모델
+│   │   │   └── errors.py            # [Err] 에러 코드 및 예외 매핑
 │   ├── services/
 │   │   ├── __init__.py
-│   │   ├── planner/                 # [Service] V1AI 플래너 LangGraph Nodes
-│   │   │   └── utils/
-│   │   │       ├── time_utils.py    # [Util] 시간 문자열 변환, TimeZone 계산 등 시간 처리 헬퍼
-│   │   │       └── session_utils.py # [Util] 가용 시간(FreeSession) 계산 및 Capacity 산출 헬퍼
-│   │   │   └── nodes/               # [Node] 파이프라인 개별 단계 구현
-│   │   │       ├── node1_structure.py     # [Node 1] 구조 분석: LLM을 이용해 작업 분류(Category) 및 인지 부하(CogLoad) 분석
-│   │   │       ├── node2_importance.py    # [Node 2] 중요도 산정: 규칙 기반(Rule-based) 중요도 및 피로도 점수 계산
-│   │   │       └── node3_chain_generator.py # [Node 3] 체인 생성: LLM을 이용해 최적의 작업 배치 시나리오(Candidate) 생성
-│   │   └── gemini_test_planner_service.py  # [Service] V1 플래너 테스트 (단순 Gemini 호출 및 응답 파싱)
+│   │   ├── personalization_service.py # [Service] 개인화 데이터 처리 서비스
+│   │   └── planner/                 # [Service] AI 플래너 LangGraph Nodes
+│   │       ├── utils/
+│   │       │   ├── time_utils.py    # [Util] 시간 처리 헬퍼
+│   │       │   ├── session_utils.py # [Util] 가용 시간 계산 헬퍼
+│   │       │   └── task_utils.py    # [Util] 부모 작업 필터링 등 태스크 기반 유틸리티
+│   │       └── nodes/               # [Node] 파이프라인 개별 단계 구현
+│   │           ├── node1_structure.py       # [Node 1] 구조 분석
+│   │           ├── node2_importance.py      # [Node 2] 중요도 산정
+│   │           ├── node3_chain_generator.py # [Node 3] 체인 생성
+│   │           ├── node4_chain_judgement.py # [Node 4] 체인 평가 (최적해 선택)
+│   │           └── node5_time_assignment.py # [Node 5] 시간 배정 (최종 확정 - V1: Flattening applied)
 │   ├── db/                          # [DB] 데이터베이스 연동
 │   │   ├── __init__.py
-│   │   └── supabase_client.py       # [DB] Supabase 클라이언트 설정 및 연결 관리
+│   │   ├── supabase_client.py       # [DB] Supabase 클라이언트 설정
+│   │   └── repositories/            # [DB] 저장소 레이어
+│   │       └── personalization_repository.py # [DB] 개인화 데이터 저장소
 │   └── core/
 │       ├── __init__.py
-│       └── config.py                # [Config] Pydantic BaseSettings 기반 환경 변수 로드 (.env 관리)
-├── requirements.txt                 # [Dependency] 프로젝트 의존성 패키지 목록 (fastapi, google-genai, langgraph 등)
-├── .env                             # [Env] 로컬 실행용 환경 변수 파일 (API Key 등 보안 정보 포함)
-├── .env.example                     # [Env] 환경 변수 템플릿 (필수 설정값 예시)
-└── .env.production                  # [Env] 프로덕션 배포용 환경 변수
-```
-
-### V1 - 플래너 생성 Gemini API 테스트
-1. `app/models/planner_test.py`
-    - API의 Request/Response 스키마 정의
-    - `PlannerGenerateRequestTest`, `PlannerGenerateResponseTest`
-2. `app/services/gemini_test_planner_service.py`
-    - Request를 통해 Gemini에 입력할 Prompt 정의
-    - Gemini API 호출 및 응답 json 파싱    
-3. `app/api/v1/gemini_test_planners.py`
-    - API 엔드포인트 연결 `ai/v1/planners`
-        - 백엔드 테스트용 API, 추후 LangGraph 완성 뒤 대체
-    - Request를 통해 Gemini API 호출
-    - 응답을 Response로 변환
+│       └── config.py                # [Config] 환경 변수 로드
+├── tests/                           # [Test] CI/CD 환경용 단위/통합 테스트 (Mock 기반, Cloud-Safe)
+│   ├── data/                        # [Data] 테스트용 샘플 JSON 데이터
+│   └── ...                          # [Test] 테스트 코드
+├── tests_local/                     # [TestLocal] 로컬 개발용 테스트 (Real DB/LLM 연동)
+│   ├── test_planner_repository.py   # [DB] 플래너 저장 리포지토리 테스트
+│   ├── reproduce_db_save.py         # [Script] DB 저장 로직 재현 스크립트
+│   └── ...
+├── requirements.txt                 # [Dependency] 프로젝트 의존성
+├── .env.example                     # [Env] 환경 변수 템플릿
+└── README.md                        # 프로젝트 설명서
 
 ---
 
-### V1 - Node 1: 구조 분석
-1. `app/llm/gemini_client.py`
-    - Gemini Client 초기화
-    - Gemini API 호출 및 응답 json 파싱
-2. `app/llm/prompts/node1_prompt.py`
-    - Node 1에 사용될 Prompt 정의
-    - 입력에 필요한 정보만 추출하여 포멧에 맡게 변환
-3. `app/models/planner/internal.py`
-    - Node 1의 응답을 처리하기 위한 모델 정의
-    - `PlannerGraphState` : LangGraph의 State, 모든 Node를 관통함
-    - `TaskFeature` : Task의 Feature를 나타내는 모델, Node 1의 응답을 처리하여 생성
-        - `taskId`, `dayPlanId`, `title`, `type`, `category`, `cognitiveLoad`, `groupId`, `groupLabel`, `orderInGroup`
-4. `app/services/planner/nodes/node1_structure.py`
-    - Node 1의 응답을 처리하여 `PlannerGraphState`를 업데이트
-    - `TaskFeature`를 생성하고 `PlannerGraphState`에 저장
-    - 재시도 횟수를 기록
-5. `tests/data/test_request.json`
-    - Node 1의 응답을 테스트하기 위한 Request 데이터
-6. `tests/test_node1.py`
-    - Node 1의 응답을 테스트하기 위한 테스트 코드
-```bash
-python -m unittest tests/test_node1.py
-```
-7. `tests/test_node1_fallback.py`
-    - Node 1의 폴백(4회 재시도 실패)응답을 테스트하기 위한 테스트 코드
-```bash
-python -m unittest tests/test_node1_fallback.py
-```
----
+## DB Integration (Supabase)
 
-### V1 - Node 2: 중요도 산출
-1. `app/llm/prompts/node2_importance.py`
-    - Node 1의 결과를 토대로
-    - 각 작업별 중요도, 피로도를 산출
-    - 이때 개인별 가중치 파라미터가 곱해진다 (개인화 AI는 후에 구현 예정, 현재는 기본값) 
-2. `tests/test_node2.py`
-    - Node 2의 응답을 테스트하기 위한 테스트 코드
-```bash
-python -m unittest tests/test_node2.py
-```
-3. `tests/test_integration_node1_node2.py`
-    - Node 1 -> Node 2 통합 테스트
-```bash
-python -m unittest tests/test_integration_node1_node2.py
-```
----
+MOLIP AI는 Supabase(PostgreSQL)와 연동하여 AI가 생성한 플래너 초안(`AI_DRAFT`)과 사용자 최종 데이터(`USER_FINAL`)를 관리합니다.
 
-### V1 - Node 3: 후보 체인 생성
-1. `app/llm/prompts/node3_prompt.py`
-    - Node 2의 결과와 시간대별 가용 용량(Capacity)을 입력으로 받아
-    - 4~6개의 후보 체인(Chain Candidates)을 생성하는 프롬프트
-2. `app/services/planner/utils/session_utils.py`
-    - 자유 배치 세션(FreeSession)별 시간대의 가용 용량(Capacity)을 계산
-3. `app/services/planner/nodes/node3_chain_generator.py`
-    - LLM 호출 및 재시도(Retry 4회) 로직
-    - 실패 시 Fallback(중요도 순 배치) 로직 포함
-4. `tests/test_node3.py`
-    - 정상 동작 테스트 (Capacity 계산, Real LLM 호출)
+### 주요 기능
+1. **비동기 저장**: API 응답 지연 없이 `BackgroundTasks`를 통해 DB에 저장.
+2. **분할 작업(Split Task) 지원**: 작업이 시간 부족으로 분할될 경우, `is_split=True`인 부모 레코드와 `is_split=False`인 자식 레코드로 나누어 저장.
+3. **통계 자동 산출**: 플래너 생성 시점의 가동률(Fill Rate), 배정된 작업 수 등을 자동으로 계산하여 메타데이터에 포함.
+
+### 로컬 DB 테스트
+실제 DB 연결이 필요한 테스트는 `tests_local/` 디렉토리에서 수행합니다.
+
 ```bash
-python -m unittest tests/test_node3.py
+# DB 저장 재현 스크립트 실행
+python tests_local/reproduce_db_save.py
 ```
-5. `tests/test_node3_fallback.py`
-    - Fallback 로직 테스트 (Mocking을 통한 에러 상황 시뮬레이션)
-```bash
-python -m unittest tests/test_node3_fallback.py
-```
-6. `tests/test_integration_node1_to_node3.py`
-    - Node 1 -> Node 2 -> Node 3 파이프라인 통합 테스트
-```bash
-python -m unittest tests/test_integration_node1_to_node3.py
-```
-7. `tests/test_node3_normalization.py`
-    - Node 3 중요도 점수 정규화 로직(0~1) 테스트
-```bash
-python -m unittest tests/test_node3_normalization.py
 ```
 
-### V1 - Node 4: 체인 평가 (Chain Judgement)
-1. `app/services/planner/nodes/node4_chain_judgement.py`
-    - Node 3에서 생성된 후보 체인 중 최적의 체인을 선택
-    - **Closure 강제**: 그룹 순서 위반 작업 제거
-    - **Overflow Penalty**: 시간대별 가용량 초과 시 페널티 부과
-    - **Scoring**: 포함/제외 효용, 피로도, 집중 시간대 정렬 등을 종합 평가
-2. `tests/test_node4.py`
-    - Node 4 로직 검증을 위한 단위 테스트
-```bash
-python -m unittest tests/test_node4.py
-```
-3. `tests/test_integration_node1_to_node4.py`
-    - Node 1 -> Node 2 -> Node 3 -> Node 4 파이프라인 통합 테스트
-```bash
-python -m unittest tests/test_integration_node1_to_node4.py
-```
-
----
-
-### V1 - 개인화 데이터 수집 (Personalization Ingest)
-1. `app/api/v1/endpoints/personalization.py`
-    - `POST /ai/v1/personalizations/ingest`
-    - 백엔드로부터 사용자의 최종 플래너 및 수정 이력을 수신하여 DB에 저장
-2. `tests/test_personalization_ingest.py`
-    - API 엔드포인트 동작 검증
-```bash
-python -m unittest tests/test_personalization_ingest.py
-```
-3. **Swagger UI 테스트**:
-    - 서버 실행 후 `/docs` 접속
-    - `POST /ai/v1/personalizations/ingest` 클릭
-    - **Example Value**가 일주일치 샘플 데이터로 자동 채워짐
-    - **Execute** 버튼 클릭으로 즉시 테스트 가능
-
-
----
-## 참고 문서
-
-- [api명세서.md](api명세서.md) - API 명세서
-- [CHANGELOG.md](CHANGELOG.md) - 개발 진행 상황
-- [CLAUDE.md](CLAUDE.md) - 개발 가이드
-- [CLOUD_DEPLOYMENT_INFO.md](CLOUD_DEPLOYMENT_INFO.md) - 클라우드 배포 가이드
