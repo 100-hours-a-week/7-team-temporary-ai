@@ -7,6 +7,23 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
 
 ## 2026-01-29
 
+### 1. LangSmith 설치 오류 (Python 3.9 호환성)
+- **현상**: `pip install langsmith==0.6.6` 실행 시 `No matching distribution found` 에러 발생.
+- **원인**: `langsmith` 0.5.0 이상 버전은 Python 3.10 이상을 요구함. 현재 프로젝트는 Python 3.9 환경.
+- **해결**: 버전을 명시하지 않음(`langsmith`)으로써 `pip`가 Python 3.9와 호환되는 마지막 버전(0.4.x)을 자동으로 찾아서 설치하도록 변경.
+
+### 2. LangSmith 데이터 전송 실패 (macOS LibreSSL 이슈)
+- **현상**: 연결 테스트 스크립트 실행 시 `NotOpenSSLWarning`이 발생하며 대시보드에 로그가 보이지 않음.
+- **원인**: macOS의 기본 `LibreSSL`과 `urllib3` v2 버전 간의 호환성 문제로 HTTPS 요청이 차단됨.
+- **해결**: `requirements.txt`에 `urllib3<2`를 추가하여 네트워킹 라이브러리 버전을 다운그레이드.
+
+### 3. API 호출 시 LangSmith 로그 누락
+- **현상**: `test_langsmith.py`는 성공했으나, 실제 `uvicorn` 서버 실행 후 API 호출 시에는 로그가 남지 않음.
+- **원인**: `app/main.py`에서 `langsmith` 관련 라이브러리가 임포트되거나 초기화되는 시점이 `load_dotenv()`보다 빨라서 환경 변수(`LANGCHAIN_TRACING_V2`)가 적용되지 않음.
+- **해결**: `app/main.py` 최상단에 `load_dotenv()`를 명시적으로 호출하여 앱 시작과 동시에 환경 변수를 로드하도록 수정.
+
+
+
 ### 1. 클라우드 환경에서 Logfire 로그 미수집
 - **현상**: AWS 등 클라우드 서버에 배포 후 애플리케이션은 정상 동작하나 Logfire 대시보드에 로그가 올라오지 않음.
 - **원인**: `logfire.configure(send_to_logfire='if-token-present')` 설정에 의해, 인증 토큰이 없으면 자동으로 로깅이 비활성화됨. 로컬과 달리 서버 환경변수에는 토큰이 등록되지 않았기 때문.

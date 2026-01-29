@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional
 from google import genai
 from google.genai import types
 import logfire
+from langsmith import traceable
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,7 @@ class GeminiClient:
         # 사용할 Gemini 모델 지정
         self.model_name = "gemini-2.5-flash-lite"
         
+    @traceable(run_type="llm", name="Gemini Generation")
     async def generate(self, system: str, user: str) -> Dict[str, Any]:
         """
         Gemini API를 호출하여 JSON 응답을 반환

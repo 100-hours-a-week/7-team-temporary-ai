@@ -84,6 +84,15 @@ MOLIP AI 서버는 [Logfire](https://logfire.pydantic.dev)를 통해 전체 API 
 2. **LLM Analytics**: 토큰 사용량(비용), 프롬프트/응답 디버깅 (`logfire.span`)
 3. **Structured Logging**: SQL 질의 가능한 형태의 로그 저장
 
+## LLM Debugging (LangSmith)
+
+복잡한 LangGraph 파이프라인의 디버깅을 위해 로컬 개발 환경에서는 [LangSmith](https://smith.langchain.com/)를 병행 사용합니다.
+
+- **설정**: `.env` 파일에 `LANGCHAIN_TRACING_V2=true` 및 API Key가 설정되어 있어야 합니다.
+- **용도**: 로컬에서 실행되는 LLM의 입력(Prompt)과 출력(Response), Token 사용량을 상세하게 추적.
+- **주의**: 배포 환경(AWS 등)에서는 비용 및 성능 이슈 방지를 위해 환경 변수를 제거하여 비활성화합니다.
+
+
 ---
 
 

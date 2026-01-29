@@ -25,3 +25,7 @@ supabase==2.27.2
 pytest==8.4.2
 httpx==0.28.1
 
+
+# Monitoring
+langsmith==0.4.37
+urllib3==1.26.20

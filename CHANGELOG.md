@@ -7,6 +7,28 @@
 
 ## 2026-01-29
 
+### LangSmith 도입 (Local LLM Debugging)
+
+**목적**: 복잡한 LangGraph 파이프라인의 디버깅 효율을 높이기 위해, 로컬 개발 환경에 한해 상세한 LLM 실행 추적(Trace) 도구인 LangSmith를 도입함. (실서버 배포 시에는 비활성화)
+
+#### 주요 변경 사항
+
+1. **[requirements.txt](requirements.txt)**
+   - **라이브러리 추가**: `langsmith==0.4.37` 및 `urllib3==1.26.20`.
+   - **버전 정책**: Python 3.9 호환성 및 네트워크 안정성을 위해 검증된 버전으로 명시적 고정.
+
+2. **[app/llm/gemini_client.py](app/llm/gemini_client.py)**
+   - **Instrumentation**: `generate` 메서드에 `@traceable` 데코레이터 적용.
+   - **효과**: LangChain을 사용하지 않는 직접 API 호출 방식에서도 LangSmith에 자동으로 로그가 남도록 설정.
+
+3. **[tests_local/test_langsmith.py](tests_local/test_langsmith.py)** (신규)
+   - **연결 테스트**: API Key 및 네트워크 연결 상태를 진단하고, 강제로 테스트 로그를 전송하는 스크립트.
+
+4. **[app/main.py](app/main.py)**
+   - **환경 변수 로드**: `langsmith` 라이브러리가 초기화되기 전에 `.env` 파일의 설정을 먼저 읽어오도록 `load_dotenv()` 호출 시점 조정.
+
+
+
 ### Logfire 환경 변수 설정 공식화
 
 **목적**: 클라우드 및 협업 환경에서 Logfire 연결을 위한 인증 토큰(`LOGFIRE_TOKEN`) 관리 체계를 수립하고, 코드 차원에서 이를 명시적으로 지원함.

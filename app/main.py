@@ -5,8 +5,12 @@ FastAPI 애플리케이션 진입점
 """
 
 import logging
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+# .env 파일 로드 (LangSmith 등 환경변수 적용)
+load_dotenv()
 
 from app.core.config import settings
 from app.api import v1
@@ -15,7 +19,7 @@ import logfire
 # Logfire 설정 (관측성)
 logfire.configure(token=settings.logfire_token, send_to_logfire='if-token-present')
 
-VERSION = "26.01.28 - V1 플래너 생성 API (LangGraph Pipeline) 구현 완료"
+VERSION = "26.01.29 - V1 플래너 생성 API DB 연동 완료"
 
 # 로깅 설정
 logging.basicConfig(
