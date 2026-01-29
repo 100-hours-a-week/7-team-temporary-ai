@@ -7,6 +7,20 @@
 
 ## 2026-01-29
 
+### 10분 단위 시간 배정 (Time Granularity) 적용
+
+**목적**: 플래너의 가독성을 높이고 사용자 경험을 개선하기 위해, 모든 AI 배정 작업(FLEX)의 시간 단위를 10분(10, 20, 30...)으로 통일함.
+
+#### 주요 변경 사항
+
+1. **[app/services/planner/nodes/node5_time_assignment.py](app/services/planner/nodes/node5_time_assignment.py)**
+   - **Start Time Alignment**: 세션 시작 시간이 10분 단위가 아닐 경우(예: 09:03), 다음 10분 단위(09:10)로 올림 처리.
+   - **End Time Alignment**: 세션 종료 시간이 10분 단위가 아닐 경우(예: 09:17), 이전 10분 단위(09:10)로 내림 처리하여 자투리 시간 발생 방지.
+   - **FLEX Task Guarantee**: 사용자가 설정한 FIXED 일정이 불규칙하더라도(분 단위), AI가 배정하는 FLEX 일정은 항상 깔끔한 10분 단위로 생성됨을 보장.
+
+2. **[tests_local/test_planner_granularity.py](tests_local/test_planner_granularity.py)** (신규)
+   - **검증**: 불규칙한 시작/종료 시간(Irregular Session boundaries)에 대해 올비르게 정렬되는지 확인하는 전용 테스트 작성.
+
 ### LangSmith 도입 (Local LLM Debugging)
 
 **목적**: 복잡한 LangGraph 파이프라인의 디버깅 효율을 높이기 위해, 로컬 개발 환경에 한해 상세한 LLM 실행 추적(Trace) 도구인 LangSmith를 도입함. (실서버 배포 시에는 비활성화)
