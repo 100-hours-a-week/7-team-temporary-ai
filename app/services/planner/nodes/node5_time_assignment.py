@@ -1,4 +1,5 @@
 import logfire  # [Logfire] Import
+import math
 from typing import List, Dict, Optional, Tuple, Set
 from pydantic import BaseModel
 
@@ -62,7 +63,12 @@ def node5_time_assignment(state: PlannerGraphState) -> PlannerGraphState:
 
     for session in sessions:
         # 세션의 가용 시간 범위 (분 단위)
-        current_time = session.start
+        # [V2 Logic] Start/End 10분 단위 정렬 Guarantee
+        # 예: 09:03 -> 09:10으로 올림 (math.ceil)
+        # 예: 남은 시간이 17분이면 -> 10분만 사용 (내림)
+        current_time_raw = session.start
+        current_time = math.ceil(current_time_raw / 10.0) * 10 
+        
         session_end = session.end
         
         # 세션의 지배적 시간대 판별 (Dominant TimeZone)
@@ -73,6 +79,14 @@ def node5_time_assignment(state: PlannerGraphState) -> PlannerGraphState:
 
         # 세션 채우기 루프
         while current_time < session_end:
+            # 유효 남은 시간 계산 (10분 단위 내림)
+            raw_remaining = session_end - current_time
+            effective_remaining_time = (raw_remaining // 10) * 10
+            
+            # 만약 유효 시간이 0이면(예: 7분 남음), 이 세션엔 더 이상 배정 불가
+            if effective_remaining_time <= 0:
+                break
+                
             # 1순위: 자투리 작업이 남아있는가? (V1 정책: 무조건 최우선)
             target_task_id = None
             
@@ -87,9 +101,6 @@ def node5_time_assignment(state: PlannerGraphState) -> PlannerGraphState:
 
             feature = task_features[target_task_id]
             
-            # 남은 가용 시간
-            remaining_session_time = session_end - current_time
-            
             # 작업의 필요 시간 (배치용 durationPlanMin 사용)
             # 자투리인 경우 pending_remainder_duration 사용
             current_task_duration = 0
@@ -99,9 +110,10 @@ def node5_time_assignment(state: PlannerGraphState) -> PlannerGraphState:
                 current_task_duration = feature.durationPlanMin
 
             # --- 배치 가능 여부 및 분할 판정 ---
+            # 비교 대상: effective_remaining_time
             
             # A. 세션에 통째로 들어가는 경우 (No Split needed for this chunk)
-            if current_task_duration <= remaining_session_time:
+            if current_task_duration <= effective_remaining_time:
                 # [배정 성공]
                 start_at_str = minutes_to_hhmm(current_time)
                 end_at_str = minutes_to_hhmm(current_time + current_task_duration)
@@ -141,8 +153,8 @@ def node5_time_assignment(state: PlannerGraphState) -> PlannerGraphState:
                 continue
 
             # B. 세션 공간 부족 -> 분할 (Splitting)
-            # 할당할 수 있는 만큼만 할당 (세션 끝까지)
-            allocatable = remaining_session_time
+            # 할당할 수 있는 만큼만 할당 (유효 시간만큼)
+            allocatable = effective_remaining_time
             
             # 최소 청크(MinChunk) 체크: 
             # 만약 배정하려는 시간이 너무 짧으면(예: 10분 미만), 
