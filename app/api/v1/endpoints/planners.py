@@ -13,6 +13,7 @@ import time
 import logfire
 import json
 import os
+import uuid
 from pathlib import Path
 
 router = APIRouter()
@@ -29,8 +30,8 @@ except Exception as e:
     print(f"WARNING: Failed to load test_request.json for Swagger example: {e}")
     TEST_REQUEST_EXAMPLE = {}
 
-@router.post("/test", response_model=PlannerResponse)
-async def generate_planner_test(
+@router.post("", response_model=PlannerResponse)
+async def generate_planner(
     background_tasks: BackgroundTasks,
     request: ArrangementState = Body(
         ...,
@@ -41,8 +42,13 @@ async def generate_planner_test(
     [Test] LangGraph Pipeline-based Planner Generation (V1)
     """
     start_time = time.time()
+    trace_id = str(uuid.uuid4())
     
-    with logfire.span("api.v1.planners.test"):
+    from app.models.planner.errors import map_exception_to_error_code, is_retryable_error
+    from fastapi.encoders import jsonable_encoder
+    from fastapi.responses import JSONResponse
+
+    with logfire.span("api.v1.planners.generate"):
         try:
             # 1. State Initialization
             # Calculate Free Sessions
@@ -128,9 +134,41 @@ async def generate_planner_test(
                 success=True,
                 processTime=round(process_time, 2),
                 results=combined_results,
-                message="Planner generated successfully"
+                message="Planner generated successfully",
+                traceId=trace_id
             )
             
         except Exception as e:
-            # Error handling mapping can be added here
-            raise HTTPException(status_code=500, detail=str(e))
+            process_time = time.time() - start_time
+            error_code = map_exception_to_error_code(e)
+            
+            logfire.error(f"Generate Planner Error: {e}", error_code=error_code)
+            
+            error_response = PlannerResponse(
+                success=False,
+                processTime=round(process_time, 2),
+                message=str(e),
+                errorCode=error_code,
+                traceId=trace_id
+            )
+            
+            status_code = 500
+            if "BAD_REQUEST" in error_code or "INVALID" in error_code:
+                status_code = 400
+            elif "UNAUTHENTICATED" in error_code:
+                status_code = 401
+            elif "PERMISSION" in error_code:
+                status_code = 403
+            elif "NOT_FOUND" in error_code:
+                status_code = 404
+            elif "TIMEOUT" in error_code:
+                status_code = 504
+            elif "SERVICE_UNAVAILABLE" in error_code:
+                status_code = 503
+            elif "RESOURCE_EXHAUSTED" in error_code:
+                status_code = 429
+                
+            return JSONResponse(
+                status_code=status_code,
+                content=jsonable_encoder(error_response, exclude_unset=True)
+            )

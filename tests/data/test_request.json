@@ -176,17 +176,19 @@
             "taskId": 100,
             "dayPlanId": 1,
             "title": "졸업 프로젝트",
-            "type": "FIXED",
-            "startAt": "09:00",
-            "endAt": "09:10"
+            "type": "FLEX",
+            "estimatedTimeRange": "HOUR_1_TO_2",
+            "focusLevel": 8,
+            "isUrgent": true
         },
         {
             "taskId": 200,
             "dayPlanId": 1,
             "title": "정보처리기사 실기 준비",
-            "type": "FIXED",
-            "startAt": "09:10",
-            "endAt": "09:20"
+            "type": "FLEX",
+            "estimatedTimeRange": "HOUR_1_TO_2",
+            "focusLevel": 8,
+            "isUrgent": true
         }
     ]
 }

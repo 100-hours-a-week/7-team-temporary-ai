@@ -21,8 +21,15 @@ class AssignmentResult(BaseModel):
     endAt: Optional[str] = None
     children: Optional[List[SubTaskResult]] = None
 
+class PlannerErrorDetail(BaseModel):
+    field: str
+    reason: str
+
 class PlannerResponse(BaseModel):
     success: bool
     processTime: float
-    results: List[AssignmentResult]
+    results: Optional[List[AssignmentResult]] = None
     message: str = "Planner generated successfully"
+    errorCode: Optional[str] = None
+    details: Optional[List[PlannerErrorDetail]] = None
+    traceId: Optional[str] = None
