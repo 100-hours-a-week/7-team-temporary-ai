@@ -2,9 +2,9 @@
     "user": {
         "userId": 123,
         "focusTimeZone": "MORNING",
-        "dayEndTime": "23:00"
+        "dayEndTime": "02:00"
     },
-    "startArrange": "08:00",
+    "startArrange": "10:15",
     "schedules": [
         {
             "taskId": 1002,
@@ -171,24 +171,6 @@
             "title": "Unknown Gibberish",
             "type": "FLEX",
             "estimatedTimeRange": "MINUTE_UNDER_30"
-        },
-        {
-            "taskId": 100,
-            "dayPlanId": 1,
-            "title": "졸업 프로젝트",
-            "type": "FLEX",
-            "estimatedTimeRange": "HOUR_1_TO_2",
-            "focusLevel": 8,
-            "isUrgent": true
-        },
-        {
-            "taskId": 200,
-            "dayPlanId": 1,
-            "title": "정보처리기사 실기 준비",
-            "type": "FLEX",
-            "estimatedTimeRange": "HOUR_1_TO_2",
-            "focusLevel": 8,
-            "isUrgent": true
         }
     ]
 }

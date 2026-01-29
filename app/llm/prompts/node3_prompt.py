@@ -75,8 +75,11 @@ def format_node3_input(
     Node 3 LLM 입력용 데이터 포맷팅
     """
     tasks_list = []
+    # "ERROR" 카테고리인 작업은 LLM 배치 대상에서 제외
+    filtered_features = [f for f in task_features.values() if f.category != "ERROR"]
+    
     # 중요도 순으로 정렬하여 보여주는 것이 LLM이 파악하기 좋음
-    sorted_features = sorted(task_features.values(), key=lambda x: x.importanceScore, reverse=True)
+    sorted_features = sorted(filtered_features, key=lambda x: x.importanceScore, reverse=True)
 
     # [Normalization] Importance Score 정규화 (Min-Max Scaling)
     # 범위가 제각각일 수 있으므로 0.0 ~ 1.0으로 맞춤

@@ -26,6 +26,7 @@ python -m unittest tests/test_connectivity.py
 - **주요 기능**:
   - `unittest.mock`을 사용하여 LLM 응답을 가상(Mock)으로 대체.
   - Node 1(구조) → Node 5(배정) 전체 흐름이 의도대로 동작하는지 검증.
+  - **최신 로직 반영**: 부모 작업(Container) 필터링 및 "ERROR" 카테고리 작업의 `EXCLUDED` 처리 로직 포함.
   - Pydantic 모델 유효성 검사 및 데이터 흐름 확인.
 - **실행**:
 ```bash

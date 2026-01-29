@@ -40,6 +40,7 @@ pip install -r requirements.txt
 
 ### 3. 테스트 진행
 ```bash
+# 약 3초 소요
 pytest tests/
 ```
 
@@ -72,6 +73,20 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 - **Model**: `gemini-2.5-flash-lite` (Google GenAI)
 - **Retry Policy**: Node 1(구조 분석)에서 LLM 응답 실패 시 **총 5회(1회 시도 + 4회 재시도)** 수행 후 Fallback 로직으로 전환합니다.
+
+---
+
+## 주요 플래너 로직 (Core Planner Logic)
+
+MOLIP AI 플래너는 정교한 스케줄링을 위해 다음과 같은 세부 로직을 포함합니다.
+
+1. **부모 작업(Container) 자동 필터링**
+   - 하위 작업(Sub-tasks)이 존재하는 부모 작업은 실제 수행 시간이 필요한 실무 작업이 아닌 '컨테이너(그룹)'로 간주합니다.
+   - 플래너 내부 분석(Node 1~4) 및 최종 시간 배정(Node 5) 단계에서 자동으로 필터링되어 결과에 중복 노출되지 않습니다.
+
+2. **비정상 작업(ERROR) 처리**
+   - Node 1(구조 분석)에서 "ERROR" 카테고리로 분류된 작업(예: "asdf", "ㅁㄴㅇㄹ" 등 무의미한 입력)은 스케줄링 엔진에 의해 무시됩니다.
+   - 하지만 사용자가 입력한 데이터의 누락을 방지하기 위해, 최종 API 응답에는 `EXCLUDED` 상태로 포함되어 반환됩니다.
 
 ---
 
@@ -132,7 +147,8 @@ MOLIP-AI/
 │   │   └── planner/                 # [Service] AI 플래너 LangGraph Nodes
 │   │       ├── utils/
 │   │       │   ├── time_utils.py    # [Util] 시간 처리 헬퍼
-│   │       │   └── session_utils.py # [Util] 가용 시간 계산 헬퍼
+│   │       │   ├── session_utils.py # [Util] 가용 시간 계산 헬퍼
+│   │       │   └── task_utils.py    # [Util] 부모 작업 필터링 등 태스크 기반 유틸리티
 │   │       └── nodes/               # [Node] 파이프라인 개별 단계 구현
 │   │           ├── node1_structure.py       # [Node 1] 구조 분석
 │   │           ├── node2_importance.py      # [Node 2] 중요도 산정

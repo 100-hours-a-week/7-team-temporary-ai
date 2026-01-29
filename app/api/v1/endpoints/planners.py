@@ -52,8 +52,13 @@ async def generate_planner(
         try:
             # 1. State Initialization
             # Calculate Free Sessions
+            from app.services.planner.utils.task_utils import filter_parent_tasks
+            
+            # Calculate Free Sessions
             fixed_tasks = [t for t in request.schedules if t.type == "FIXED"]
-            flex_tasks = [t for t in request.schedules if t.type == "FLEX"]
+            
+            # Filter out Parent Tasks (Container Tasks) from Flex Tasks
+            flex_tasks = filter_parent_tasks(request.schedules)
             
             sessions = calculate_free_sessions(
                 start_arrange_str=request.startArrange,

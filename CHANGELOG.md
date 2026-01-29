@@ -11,6 +11,15 @@
 
 **목적**: 검증이 완료된 LangGraph 기반 플래너 생성 로직을 메인 엔드포인트(`/ai/v1/planners`)로 승격시키고, 테스트용 레거시 코드 및 파일을 정리하여 운영 환경 배포 준비를 마침.
 
+#### 버그 수정 (Bug Fixes)
+
+1. **비정상 작업(ERROR) 응답 포함**
+   - **[app/services/planner/nodes/node2_importance.py](app/services/planner/nodes/node2_importance.py)**: Node 1에서 "ERROR"로 분류된 작업을 분석에서 즉시 제거하지 않고 유지하도록 변경.
+   - **[app/llm/prompts/node3_prompt.py](app/llm/prompts/node3_prompt.py)**: LLM(Node 3) 입력 단계에서만 "ERROR" 작업을 제외하여, 최종적으로 Node 5에서 `EXCLUDED` 상태로 반환되도록 수정.
+
+3. **플래너 최대 시간 제한 (24:00 Cap)**
+   - **[app/services/planner/utils/session_utils.py](app/services/planner/utils/session_utils.py)**: 사용자가 `dayEndTime`을 새벽 시간(예: 02:00)으로 설정하더라도, 현재 버전에서는 최대 24:00까지만 일정을 배치하도록 제한 로직 추가.
+
 #### 주요 변경 사항
 
 1. **[app/api/v1/endpoints/planners.py](app/api/v1/endpoints/planners.py)**
