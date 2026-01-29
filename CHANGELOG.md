@@ -30,6 +30,9 @@
 1. **[app/db/repositories/planner_repository.py](app/db/repositories/planner_repository.py)** (신규)
    - **기능**: `save_ai_draft` 메서드 구현 (FLEX 및 FIXED 작업 모두 저장).
    - **데이터 흐름**: `PlannerGraphState` → `planner_records` (메타데이터) → `record_tasks` (작업 상세) 순서로 저장.
+   - **분할 작업(Splitting) 저장 전략**:
+     - **부모 Row** (`is_split=True`): 시간 정보(`start_at`, `end_at`)는 `NULL`, 자식 정보는 `children` JSON 컬럼에 보관.
+     - **자식 Row** (`is_split=False`): 부모와 동일한 `task_id`를 공유하며, 실제 시간 정보와 분할된 제목 저장.
    - **통계 저장**: 플래너 생성 시점의 `fill_rate`, `assigned_count` 등 주요 지표 자동 산출 및 저장.
 
 2. **[app/api/v1/endpoints/planners.py](app/api/v1/endpoints/planners.py)**

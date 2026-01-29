@@ -31,6 +31,7 @@ except Exception as e:
 
 @router.post("/test", response_model=PlannerResponse)
 async def generate_planner_test(
+    background_tasks: BackgroundTasks,
     request: ArrangementState = Body(
         ...,
         example=TEST_REQUEST_EXAMPLE
@@ -81,25 +82,11 @@ async def generate_planner_test(
             # 3. Response Construction
             final_results = state.finalResults
             
-            # Mix with Fixed Tasks if needed? 
-            # The API spec says "results" list. Usually includes everything or just assigned FLEX? 
-            # "assignedBy: USER" for FIXED tasks.
-            # Node 5 excludes FIXED tasks from `finalResults` by default (it processes FLEX).
-            # We should probably combine them or check if `finalResults` has them.
-            # Currently `node5` only outputs FLEX assignment results.
-            
-            # Let's add FIXED tasks to the result list for completeness
+            # Mix with Fixed Tasks
             combined_results = []
             
-            # 3.1 FLEX Results (already AssignmentResult objects, but missing userId if model didn't have it before)
-            # We updated the model to have userId. We need to inject it.
-            # Node 5 creation of AssignmentResult likely doesn't have userId yet because we just added it.
-            # We should update Node 5 or inject it here.
-            # Injecting here is safer to avoid breaking Node 5 internal logic for a moment if it's strict.
-            # But AssignmentResult is a Pydantic model. 
-            
+            # 3.1 FLEX Results
             for res in final_results:
-                # Copy and update userId
                 res_dict = res.model_dump()
                 res_dict['userId'] = request.user.userId
                 combined_results.append(AssignmentResult(**res_dict))
@@ -120,10 +107,22 @@ async def generate_planner_test(
                 ))
             
             # Sort by startAt
-            # Handle None startAt (EXCLUDED) -> push to end
             combined_results.sort(key=lambda x: x.startAt if x.startAt else "99:99")
             
             process_time = time.time() - start_time
+            
+            # [DB Integration] Save AI Draft Record asynchronously
+            try:
+                from app.db.repositories.planner_repository import PlannerRepository
+                repo = PlannerRepository()
+                
+                # Check DB connection using logfire or print
+                # We simply add task to background
+                background_tasks.add_task(repo.save_ai_draft, state)
+                print(f"[API] Background task scheduled for save_ai_draft")
+                
+            except Exception as db_e:
+                print(f"[Warning] Failed to schedule save_ai_draft: {db_e}")
             
             return PlannerResponse(
                 success=True,

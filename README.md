@@ -140,11 +140,34 @@ MOLIP-AI/
 │   └── core/
 │       ├── __init__.py
 │       └── config.py                # [Config] 환경 변수 로드
-├── tests/                           # [Test] 단위 및 통합 테스트 코드
+├── tests/                           # [Test] CI/CD 환경용 단위/통합 테스트 (Mock 기반, Cloud-Safe)
 │   ├── data/                        # [Data] 테스트용 샘플 JSON 데이터
 │   └── ...                          # [Test] 테스트 코드
+├── tests_local/                     # [TestLocal] 로컬 개발용 테스트 (Real DB/LLM 연동)
+│   ├── test_planner_repository.py   # [DB] 플래너 저장 리포지토리 테스트
+│   ├── reproduce_db_save.py         # [Script] DB 저장 로직 재현 스크립트
+│   └── ...
 ├── requirements.txt                 # [Dependency] 프로젝트 의존성
 ├── .env.example                     # [Env] 환경 변수 템플릿
 └── README.md                        # 프로젝트 설명서
+
+---
+
+## DB Integration (Supabase)
+
+MOLIP AI는 Supabase(PostgreSQL)와 연동하여 AI가 생성한 플래너 초안(`AI_DRAFT`)과 사용자 최종 데이터(`USER_FINAL`)를 관리합니다.
+
+### 주요 기능
+1. **비동기 저장**: API 응답 지연 없이 `BackgroundTasks`를 통해 DB에 저장.
+2. **분할 작업(Split Task) 지원**: 작업이 시간 부족으로 분할될 경우, `is_split=True`인 부모 레코드와 `is_split=False`인 자식 레코드로 나누어 저장.
+3. **통계 자동 산출**: 플래너 생성 시점의 가동률(Fill Rate), 배정된 작업 수 등을 자동으로 계산하여 메타데이터에 포함.
+
+### 로컬 DB 테스트
+실제 DB 연결이 필요한 테스트는 `tests_local/` 디렉토리에서 수행합니다.
+
+```bash
+# DB 저장 재현 스크립트 실행
+python tests_local/reproduce_db_save.py
+```
 ```
 

@@ -14,6 +14,16 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
   - 배포 환경(AWS Lambda, Docker 등)의 환경 변수 설정에 `LOGFIRE_TOKEN` 키로 프로젝트의 Write Token 값을 추가.
   - 앱 재시작 후 연결 확인.
 
+### 2. 비동기 작업 스케줄링 실수 (NameError: background_tasks)
+- **현상**: API 엔드포인트에서 `background_tasks.add_task(...)` 호출 시 `name 'background_tasks' is not defined` 500 에러 발생.
+- **원인**: FastAPI 엔드포인트 함수 인자에 `background_tasks: BackgroundTasks` 의존성 주입을 누락함.
+- **해결**: 함수 시그니처에 `background_tasks: BackgroundTasks` 파라미터 추가.
+
+### 3. Pydantic 모델 필드 누락 (Validation Error)
+- **현상**: DB 저장 로직 테스트 중 `pydantic_core._pydantic_core.ValidationError: Field required [type=missing]` 에러 발생.
+- **원인**: `PlannerGraphState`나 `AssignmentResult`와 같은 Pydantic 모델을 수동으로 생성할 때, 필수 필드(`type`, `userId`, `dayPlanId` 등)를 빠뜨려서 발생.
+- **해결**: 모델 정의(`app/models/...`)를 확인하여 필수 필드(`...` 또는 기본값이 없는 필드)를 모두 채워서 인스턴스 생성.
+
 ---
 
 ## 2026-01-28
