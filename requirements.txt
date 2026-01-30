@@ -27,5 +27,5 @@ httpx==0.28.1
 
 
 # Monitoring
-langsmith==0.4.37
+langfuse==3.7.0
 urllib3==1.26.20

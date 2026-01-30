@@ -33,6 +33,15 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
   - `기타`: **실행 가능한 구체적 행동(Actionable Task)**이 있는 경우로만 범위를 축소 (예: "은행 가기").
   - `ERROR`: 무의미어뿐만 아니라 인사말, 추임새, 맥락 없는 질문, 모호한 텍스트 등을 포함하도록 정의 확장 및 구체적 예시 추가.
 
+### 5. Monitoring Stack Migration (LangSmith → Langfuse)
+- **결정 배경 (Decision)**:
+    - **LangSmith의 제약**: Python 3.9 환경에서 최신 버전 호환성 문제 및 다른 로깅 툴(Logfire)과의 역할 중복.
+    - **Langfuse 도입 목적**: 오픈소스 기반으로 로컬 LLM 확장성이 좋고, Docker Self-hosting이 용이하여 장기적인 비용/관리 효율성 증대.
+- **마이그레이션 중 발생한 이슈 및 해결**:
+    1. **Python 3.9 호환성**: 최신 SDK(3.12.1) 설치 불가 → `3.7.0`으로 버전 고정 및 Import 경로(`langfuse.decorators` → `langfuse`) 수정.
+    2. **테스트 인증 오류**: `unittest` 실행 시 `.env` 미로딩 → 테스트 코드 상단에 `load_dotenv()` 명시.
+    3. **로그 누락 (Short-lived Process)**: 비동기 전송 전 프로세스 종료 → `gemini_client`에 `langfuse.get_client().flush()` 강제 전송 로직 추가.
+
 ## 2026-01-29
 
 ### 1. LangSmith 설치 오류 (Python 3.9 호환성)
@@ -45,28 +54,27 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
 - **원인**: `app/api/v1/gemini_test_planners.py` 삭제 과정에서 `__init__.py`의 `router = APIRouter()` 초기화 라인을 실수로 함께 삭제함.
 - **해결**: `APIRouter` 초기화 코드 및 누락된 `import` 문을 복구하여 해결.
 
-### 2. LangSmith 데이터 전송 실패 (macOS LibreSSL 이슈)
+### 3. LangSmith 데이터 전송 실패 (macOS LibreSSL 이슈)
 - **현상**: 연결 테스트 스크립트 실행 시 `NotOpenSSLWarning`이 발생하며 대시보드에 로그가 보이지 않음.
 - **원인**: macOS의 기본 `LibreSSL`과 `urllib3` v2 버전 간의 호환성 문제로 HTTPS 요청이 차단됨.
 - **해결**: `requirements.txt`에 `urllib3<2`를 추가하여 네트워킹 라이브러리 버전을 다운그레이드.
 
-### 3. API 호출 시 LangSmith 로그 누락
+### 4. API 호출 시 LangSmith 로그 누락
 - **현상**: `test_langsmith.py`는 성공했으나, 실제 `uvicorn` 서버 실행 후 API 호출 시에는 로그가 남지 않음.
 - **원인**: `app/main.py`에서 `langsmith` 관련 라이브러리가 임포트되거나 초기화되는 시점이 `load_dotenv()`보다 빨라서 환경 변수(`LANGCHAIN_TRACING_V2`)가 적용되지 않음.
 - **해결**: `app/main.py` 최상단에 `load_dotenv()`를 명시적으로 호출하여 앱 시작과 동시에 환경 변수를 로드하도록 수정.
 
-### 4. 불규칙한 FIXED 일정으로 인한 FLEX 배정 혼선
+### 5. 불규칙한 FIXED 일정으로 인한 FLEX 배정 혼선
 - **현상**: 사용자가 "09:03 ~ 10:17"과 같이 분 단위로 FIXED 일정을 설정할 경우, 남은 시간에 배정되는 FLEX 작업도 "10:17 ~ 10:47" 처럼 지저분하게 생성됨.
 - **해결**: **Time Granularity Alignment (10분 단위)** 적용.
   - 가용 시간의 시작("09:03")은 "09:10"으로 올림(Ceiling).
   - 가용 시간의 종료("10:17")는 "10:10"으로 내림(Floor).
   - 결과적으로 FLEX 작업은 항상 10분 단위(XX:00, XX:10...)로 배정됨.
 
-### 5. 부모 작업(Parent Task) 중복 노출 및 배정
+### 6. 부모 작업(Parent Task) 중복 노출 및 배정
 - **현상**: `parentScheduleId`를 통해 참조되는 상위(Container) 작업이 플래너 결과 목록에 포함되어 실제 일정으로 배정됨.
 - **원인**: API 엔드포인트 및 초기 상태(State) 생성 시, 하위 작업들이 참조하는 부모 ID를 수집하여 필터링하는 로직이 누락됨.
 - **해결**: `app/services/planner/utils/task_utils.py`에 `filter_parent_tasks` 유틸리티를 구현. 다른 작업의 `parentScheduleId`로 사용된 ID를 가진 작업은 분석 및 배정 대상에서 제외하도록 수정.
-
   - 결과적으로 배정되지 않은 상태로 Node 5까지 도달하여 `EXCLUDED` 상태로 반환됨.
 
 ### 7. 새벽 시간대(Next Day) 입력 시 플래너 범위 혼선
@@ -74,21 +82,19 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
 - **원인**: `calculate_free_sessions`에서 종료 시간이 시작 시간보다 빠르면 단순히 24시간을 더해 처리했기 때문.
 - **해결**: `session_utils.py`에서 `end_min` 계산 후 `min(end_min, 1440)`을 적용하여, 입력값에 상관없이 최대 24:00(자정)까지만 세션을 생성하도록 제한함. 새벽 시간대 지원은 차후 고도화 과제로 관리.
 
-
-
-### 1. 클라우드 환경에서 Logfire 로그 미수집
+### 8. 클라우드 환경에서 Logfire 로그 미수집
 - **현상**: AWS 등 클라우드 서버에 배포 후 애플리케이션은 정상 동작하나 Logfire 대시보드에 로그가 올라오지 않음.
 - **원인**: `logfire.configure(send_to_logfire='if-token-present')` 설정에 의해, 인증 토큰이 없으면 자동으로 로깅이 비활성화됨. 로컬과 달리 서버 환경변수에는 토큰이 등록되지 않았기 때문.
 - **해결**: **환경 변수 추가**.
   - 배포 환경(AWS Lambda, Docker 등)의 환경 변수 설정에 `LOGFIRE_TOKEN` 키로 프로젝트의 Write Token 값을 추가.
   - 앱 재시작 후 연결 확인.
 
-### 2. 비동기 작업 스케줄링 실수 (NameError: background_tasks)
+### 9. 비동기 작업 스케줄링 실수 (NameError: background_tasks)
 - **현상**: API 엔드포인트에서 `background_tasks.add_task(...)` 호출 시 `name 'background_tasks' is not defined` 500 에러 발생.
 - **원인**: FastAPI 엔드포인트 함수 인자에 `background_tasks: BackgroundTasks` 의존성 주입을 누락함.
 - **해결**: 함수 시그니처에 `background_tasks: BackgroundTasks` 파라미터 추가.
 
-### 3. Pydantic 모델 필드 누락 (Validation Error)
+### 10. Pydantic 모델 필드 누락 (Validation Error)
 - **현상**: DB 저장 로직 테스트 중 `pydantic_core._pydantic_core.ValidationError: Field required [type=missing]` 에러 발생.
 - **원인**: `PlannerGraphState`나 `AssignmentResult`와 같은 Pydantic 모델을 수동으로 생성할 때, 필수 필드(`type`, `userId`, `dayPlanId` 등)를 빠뜨려서 발생.
 - **해결**: 모델 정의(`app/models/...`)를 확인하여 필수 필드(`...` 또는 기본값이 없는 필드)를 모두 채워서 인스턴스 생성.
