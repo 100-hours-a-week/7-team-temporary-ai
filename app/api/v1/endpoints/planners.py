@@ -73,6 +73,9 @@ async def generate_planner(
                 flexTasks=flex_tasks,
                 freeSessions=sessions
             )
+
+            # [Logfire] Initial State Logging
+            logfire.info("Initial State", state=state)
             
             # 2. Pipeline Execution
             # Node 1

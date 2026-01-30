@@ -142,9 +142,10 @@ async def node1_structure_analysis(state: PlannerGraphState) -> PlannerGraphStat
                 category=category,
                 cognitiveLoad=cog_load,
                 # 그룹핑: 항상 parentScheduleId 사용
-                groupId=str(task.parentScheduleId) if task.parentScheduleId else None,
+                groupId=str(task.parentScheduleId) if task.parentScheduleId is not None else None,
                 groupLabel=None, # 그룹이 존재할 경우 system이 채워넣음 (LLM이 아님)
-                orderInGroup=order_in_group, 
+                # 안전 장치: parentScheduleId가 없으면 orderInGroup을 강제로 None 처리
+                orderInGroup=order_in_group if task.parentScheduleId is not None else None, 
             )
             
             # 그룹이 존재할 경우 groupLabel 채우기
