@@ -5,6 +5,52 @@
 ---
 
 
+## 2026-01-30
+
+### 모니터링 스택 마이그레이션 (LangSmith → Langfuse)
+
+**목적**: Python 3.9 환경 호환성 문제 해결 및 장기적인 비용 효율성을 위해 오픈소스 기반의 Langfuse로 모니터링 스택을 전환함.
+
+#### 주요 변경 사항
+
+1. **[requirements.txt](requirements.txt)**
+   - `langfuse==3.7.0` 추가 (Python 3.9 호환 버전 고정).
+   - `langsmith` 의존성 제거.
+
+2. **[app/llm/gemini_client.py](app/llm/gemini_client.py)**
+   - **Langfuse 통합**: `langfuse` 클라이언트를 적용하고, 비동기 환경에서 로그 유실을 방지하기 위한 `flush()` 로직 추가.
+
+3. **환경 변수 설정**
+   - 배포 환경(AWS Lambda, Docker 등)을 위한 `LOGFIRE_TOKEN` 및 Langfuse 인증 키(`LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`) 설정 가이드라인 수립.
+
+### 데이터베이스 스키마 및 쿼리 편의성 개선
+
+**목적**: 날짜 기반 데이터 조회 및 통계 집계의 효율성을 높이고, 데이터 정합성 문제를 해결함.
+
+#### 주요 변경 사항
+
+1. **Date 컬럼 추가**
+   - `planner_records`, `record_tasks` 등 주요 테이블에 `plan_date`(또는 `created_date`) 컬럼 추가.
+   - `DEFAULT CURRENT_DATE` 설정을 통해 데이터 삽입 시 별도 로직 없이 날짜 자동 기록.
+
+2. **[app/db/repositories/planner_repository.py](app/db/repositories/planner_repository.py)**
+   - **대표 DayPlanId 버그 수정**: `save_ai_draft` 시 가장 큰 `dayPlanId`를 선택하여 저장함으로써, 어제 날짜의 ID가 기록되는 문제 해결.
+
+### LLM 파이프라인 안전장치 강화 (Safety Mechanisms)
+
+**목적**: 복잡한 파이프라인(Node 1~5) 실행 과정에서 발생하는 LLM의 할루시네이션 및 데이터 무결성 문제를 구조적으로 차단함.
+
+#### 주요 변경 사항
+
+1. **[app/services/planner/nodes/node1_structure.py](app/services/planner/nodes/node1_structure.py)**
+   - **Dual Safety Mechanism**: 프롬프트 지침 강화와 함께, 코드 레벨에서 `parentScheduleId`가 없으면 `orderInGroup`을 강제로 제거하는 후처리 로직 적용.
+
+2. **비작업(Non-Task) 및 에러 필터링 고도화**
+   - **분류 기준 재정의**: '기타(Others)'는 실행 가능한 행동만 포함하고, 무의미한 텍스트나 단순 대화는 'ERROR'로 분류하여 필터링 강화.
+
+3. **[app/api/v1/endpoints/planners.py](app/api/v1/endpoints/planners.py)**
+   - **Initial State Logging**: 파이프라인 진입 시점의 원본 요청 데이터를 Logfire에 기록하여, 변환 전/후 상태 비교 및 디버깅 용이성 확보.
+
 ## 2026-01-29
 
 ### API 리팩토링 및 Production 배포 (Endpoint Promotion)
@@ -16,8 +62,15 @@
 1. **비정상 작업(ERROR) 응답 포함**
    - **[app/services/planner/nodes/node2_importance.py](app/services/planner/nodes/node2_importance.py)**: Node 1에서 "ERROR"로 분류된 작업을 분석에서 즉시 제거하지 않고 유지하도록 변경.
    - **[app/llm/prompts/node3_prompt.py](app/llm/prompts/node3_prompt.py)**: LLM(Node 3) 입력 단계에서만 "ERROR" 작업을 제외하여, 최종적으로 Node 5에서 `EXCLUDED` 상태로 반환되도록 수정.
+   
+3. **부모 작업(Parent Task) 중복 노출 필터링**
+   - **[app/services/planner/utils/task_utils.py](app/services/planner/utils/task_utils.py)**: 하위 작업이 참조하고 있는 상위(Container) 작업이 플래너 결과에 중복 노출되는 문제를 해결하기 위해 `filter_parent_tasks` 로직 적용.
 
-3. **플래너 최대 시간 제한 (24:00 Cap)**
+4. **리팩토링 안정화 (Refactoring Fixes)**
+   - `__init__.py` 누락으로 인한 `NameError` 및 `background_tasks` 의존성 주입 누락 수정.
+   - Pydantic 모델 필수 필드 누락(`ValidationError`) 수정.
+
+5. **플래너 최대 시간 제한 (24:00 Cap)**
    - **[app/services/planner/utils/session_utils.py](app/services/planner/utils/session_utils.py)**: 사용자가 `dayEndTime`을 새벽 시간(예: 02:00)으로 설정하더라도, 현재 버전에서는 최대 24:00까지만 일정을 배치하도록 제한 로직 추가.
 
 #### 주요 변경 사항
