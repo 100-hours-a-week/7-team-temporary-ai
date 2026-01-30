@@ -18,9 +18,9 @@ class PlannerRepository:
         print(f"[PlannerRepository] save_ai_draft called for User {state.request.user.userId}")
         try:
             user_id = state.request.user.userId
-            day_plan_id = state.request.schedules[0].dayPlanId if state.request.schedules else 0 
-            # Note: dayPlanId should be consistent across tasks for a single day plan request.
-            # Usually taken from the first task or request context if available.
+            # Fixed: Select max dayPlanId to ensure we capture the latest (today's) plan ID,
+            # avoiding issues where past tasks (EXCLUDED) with smaller IDs appear first in the list.
+            day_plan_id = max((t.dayPlanId for t in state.request.schedules), default=0) if state.request.schedules else 0
             
             # 1. Prepare Record Data
             fill_rate = state.fillRate if hasattr(state, 'fillRate') else 0.0
