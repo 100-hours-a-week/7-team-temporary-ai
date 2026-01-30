@@ -42,6 +42,12 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
     2. **테스트 인증 오류**: `unittest` 실행 시 `.env` 미로딩 → 테스트 코드 상단에 `load_dotenv()` 명시.
     3. **로그 누락 (Short-lived Process)**: 비동기 전송 전 프로세스 종료 → `gemini_client`에 `langfuse.get_client().flush()` 강제 전송 로직 추가.
 
+### 6. 대표 DayPlanId 혼선 (어제의 EXCLUDED 태스크 문제)
+- **현상**: 플래너 생성 결과(`planner_records`)에 저장된 `day_plan_id`가 오늘 날짜가 아닌 과거(어제) 날짜의 ID로 기록되는 현상.
+- **원인**: 요청 데이터에 "어제의 미완료 태스크(EXCLUDED)"와 "오늘의 신규 태스크(NOT_ASSIGNED)"가 섞여 있을 때, `planner_repository.py`가 리스트의 맨 첫 번째 태스크의 `dayPlanId`를 무조건 대표값으로 가져오기 때문. (정렬 순서상 과거 태스크가 먼저 오면 과거 ID가 저장됨)
+- **해결**: `save_ai_draft` 함수에서 `state.request.schedules` 리스트 내의 모든 태스크 중 **가장 큰(Max) dayPlanId**를 찾아서 저장하도록 수정.
+  - `dayPlanId`는 `BIGINT`로서 시간이 지날수록 커지므로, 가장 큰 값이 항상 "오늘(최신)"의 ID임을 보장함.
+
 ## 2026-01-29
 
 ### 1. LangSmith 설치 오류 (Python 3.9 호환성)
