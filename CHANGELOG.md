@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-02-02
+
+### 버그 수정 (Bug Fixes)
+
+1. **테스트-코드 파라미터 불일치 수정**
+   - **[app/services/planner/nodes/node2_importance.py](app/services/planner/nodes/node2_importance.py)**: `MINUTE_UNDER_30`의 최대값(`max`)이 테스트 기대값인 `40`분이 아닌 `30`분으로 설정되어 있던 문제를 수정.
+   - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**: 관련 이슈 및 해결 과정 업데이트.
+
 ## 2026-02-01
 
 ### 작업 최소 시간 제약 (Minimum Duration Constraint) 적용
