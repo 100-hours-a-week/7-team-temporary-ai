@@ -33,6 +33,17 @@ python -m unittest tests/test_connectivity.py
 python -m unittest tests/test_logic_mock.py
 ```
 
+### 3. `test_duration_constraints.py`
+- **목적**: 작업 시간 제약 조건 및 분할 로직 검증
+- **주요 기능**:
+  - `MINUTE_UNDER_30`이 30-40분으로 설정되었는지 확인.
+  - 세션이 30분보다 짧을 때 배정이 차단되는지 확인.
+  - 분할 시 남은 조각이 30분 미만이면 분할을 방지하는지 확인.
+- **실행**:
+```bash
+python -m unittest tests/test_duration_constraints.py
+```
+
 ---
 
 ## 실행 방법 (전체)

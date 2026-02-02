@@ -4,6 +4,69 @@
 
 ---
 
+## 2026-02-02
+
+### 버그 수정 (Bug Fixes)
+
+1. **테스트-코드 파라미터 불일치 수정**
+   - **[app/services/planner/nodes/node2_importance.py](app/services/planner/nodes/node2_importance.py)**: `MINUTE_UNDER_30`의 최대값(`max`)이 테스트 기대값인 `40`분이 아닌 `30`분으로 설정되어 있던 문제를 수정.
+   - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**: 관련 이슈 및 해결 과정 업데이트.
+
+## 2026-02-01
+
+### 작업 최소 시간 제약 (Minimum Duration Constraint) 적용
+
+**목적**: 프론트엔드 타임라인 렌더링 시 30분 미만의 작은 작업 블록이 깨지는 현상(Texture Issue)을 방지하고, 현실적인 작업 배치를 위해 최소 단위를 30분으로 강제함.
+
+#### 주요 변경 사항
+
+1. **[app/services/planner/nodes/node2_importance.py](app/services/planner/nodes/node2_importance.py)**
+   - **Parameter Update**: `MINUTE_UNDER_30`의 범위를 기존 `10~30분`에서 **`30~40분`**으로 상향 조정.
+   - `MINUTE_30_TO_60`의 최소값도 30분으로 통일.
+
+2. **[app/services/planner/nodes/node5_time_assignment.py](app/services/planner/nodes/node5_time_assignment.py)**
+   - **Splitting Constraint**: 작업 분할 시, 남게 되는 미래의 자식(Remainder) 작업이 최소 청크 크기(`durationMinChunk`=30분)보다 작다면 분할을 수행하지 않도록 방어 로직 추가.
+   - 세션 자체가 30분 미만인 경우 배정 시도 자체를 Skip.
+
+3. **[tests/test_duration_constraints.py](tests/test_duration_constraints.py)** (신규)
+   - **검증**: `MINUTE_UNDER_30` 파라미터 값 검증 및 "작은 세션 배정 불가", "자투리 30분 미만 분할 방지" 시나리오 테스트 작성.
+
+
+## 2026-01-30
+
+### 모니터링 스택 교체 (LangSmith → Langfuse)
+
+**목적**: Python 3.9 환경 호환성 문제 해결 및 장기적인 비용 효율성/확장성(Self-hosting 가능) 확보를 위해 LLM 모니터링 도구를 변경함.
+
+#### 주요 변경 사항
+
+1. **[requirements.txt](requirements.txt)**
+   - **Migration**: `langsmith` 제거 후 `langfuse` 도입.
+   - **Compatibility**: Python 3.9 환경에 맞춰 `langfuse` SDK 버전 조정.
+
+2. **[app/llm/gemini_client.py](app/llm/gemini_client.py)**
+   - **Instrumentation**: LangSmith Tracing 제거 및 Langfuse Tracing 적용.
+   - **Log Flush**: 비동기 프로세스 종료 시 일부 로그가 유실되는 문제를 방지하기 위한 강제 전송(`flush`) 로직 추가.
+
+### 파이프라인 안전장치 및 데이터 정합성 강화
+
+**목적**: LLM 환각으로 인한 오작동을 방지하고, 데이터베이스 저장 시 날짜 및 대표 ID가 꼬이는 문제를 해결함.
+
+#### 주요 변경 사항
+
+1. **[app/services/planner/nodes/node1_structure.py](app/services/planner/nodes/node1_structure.py)**
+   - **Parent ID Safety**: 원본 요청에 `parentScheduleId`가 없는 작업은 LLM이 임의로 순서를 부여하더라도 강제로 `orderInGroup=None` 처리.
+   - **Chat Filtering**: 단순 대화(인사, 잡담)는 `ERROR` 카테고리로 분류하여 플래너 배정에서 배제되도록 프롬프트 및 로직 개선.
+
+2. **[app/db/repositories/planner_repository.py](app/db/repositories/planner_repository.py)**
+   - **DayPlanId Fix**: 플래너 저장 시 섞여 있는 작업들 중 **가장 큰(최신)** `dayPlanId`를 대표 ID로 선택하도록 수정 (과거 날짜 기록 버그 해결).
+
+3. **[app/api/v1/endpoints/planners.py](app/api/v1/endpoints/planners.py)**
+   - **Initial State Logging**: 파이프라인 진입 전 원본 요청 상태를 `logfire`로 기록하여 디버깅 추적성 강화.
+
+4. **Schema Improvement**
+   - **Date Column**: `planner_records` 등에 `plan_date` 컬럼 추가 및 `DEFAULT CURRENT_DATE` 설정으로 날짜 기반 조회 편의성 증대.
+
 
 ## 2026-01-30
 

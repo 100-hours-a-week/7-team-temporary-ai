@@ -162,6 +162,16 @@ def node5_time_assignment(state: PlannerGraphState) -> PlannerGraphState:
             if allocatable < feature.durationMinChunk:
                 # 이 세션 포기, 다음 세션으로 (break while loop)
                 break 
+
+            # [V2 Logic] 남은 부분(Remainder)이 최소 청크보다 작게 남으면 아예 분할하지 않는다.
+            # 즉, 자식이 될 부분이 너무 작아지면 안 됨.
+            remainder_if_split = current_task_duration - allocatable
+            # 단, 이미 자투리 작업인 경우(pending_remainder_id is not None)는
+            # "마지막 조각"이 되는 것이므로 remainder가 0이 될 수도 있음 -> 이건 괜찮음.
+            # 하지만 "새로운 조각"을 남길 때는 그 조각이 MinChunk보다 커야 함.
+            if remainder_if_split > 0 and remainder_if_split < feature.durationMinChunk:
+                 # 남는 게 너무 작으면 분할 불가 -> 이 세션 포기
+                 break
                 
             # [부분 배정 수행]
             start_at_str = minutes_to_hhmm(current_time)

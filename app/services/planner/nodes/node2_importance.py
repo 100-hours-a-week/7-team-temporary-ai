@@ -4,8 +4,8 @@ from app.models.planner.internal import PlannerGraphState, TaskFeature
 from app.models.planner.request import ScheduleItem
 
 DURATION_PARAMS = {
-    "MINUTE_UNDER_30": {"avg": 20, "plan": 30, "min": 10, "max": 30},
-    "MINUTE_30_TO_60": {"avg": 45, "plan": 60, "min": 20, "max": 60},
+    "MINUTE_UNDER_30": {"avg": 30, "plan": 30, "min": 30, "max": 40},
+    "MINUTE_30_TO_60": {"avg": 45, "plan": 60, "min": 30, "max": 60},
     "HOUR_1_TO_2":     {"avg": 90, "plan": 120, "min": 40, "max": 90},
 }
 
