@@ -4,6 +4,14 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
 
 ---
 
+## 2026-02-02
+
+### 1. 테스트와 코드의 파라미터 불일치 (DURATION_PARAMS)
+- **현상**: `tests/test_duration_constraints.py` 테스트 실행 중 `MINUTE_UNDER_30`의 최대값(`max`)이 기대값(40분)과 실제값(30분)이 달라 `AssertionError` 발생.
+- **원인**: `CHANGELOG.md` (2026-02-01)에 기록된 스펙 변경 사항(`30~40분`으로 상향)이 테스트 코드에는 반영되었으나, 실제 구현 코드(`node2_importance.py`)에는 누락되어 있었음.
+- **해결**: **코드 동기화**.
+  - `app/services/planner/nodes/node2_importance.py`의 `DURATION_PARAMS["MINUTE_UNDER_30"]["max"]` 값을 `30`에서 **`40`**으로 수정하여 테스트와 일치시킴.
+
 ## 2026-02-01
 
 ### 1. 30분 미만 작업의 프론트엔드 텍스쳐 깨짐
