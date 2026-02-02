@@ -1,0 +1,176 @@
+{
+    "user": {
+        "userId": 123,
+        "focusTimeZone": "MORNING",
+        "dayEndTime": "02:00"
+    },
+    "startArrange": "10:15",
+    "schedules": [
+        {
+            "taskId": 1002,
+            "dayPlanId": 1,
+            "title": "점심 식사",
+            "type": "FIXED",
+            "startAt": "12:00",
+            "endAt": "13:00"
+        },
+        {
+            "taskId": 1003,
+            "dayPlanId": 1,
+            "title": "연구실 랩미팅",
+            "type": "FIXED",
+            "startAt": "14:00",
+            "endAt": "15:30"
+        },
+        {
+            "taskId": 1004,
+            "dayPlanId": 1,
+            "title": "저녁 식사 및 휴식",
+            "type": "FIXED",
+            "startAt": "18:00",
+            "endAt": "19:00"
+        },
+        {
+            "taskId": 1,
+            "dayPlanId": 1,
+            "title": "졸업 논문 관련 논문 리딩",
+            "type": "FLEX",
+            "estimatedTimeRange": "HOUR_1_TO_2",
+            "focusLevel": 9,
+            "isUrgent": true
+        },
+        {
+            "taskId": 2,
+            "dayPlanId": 1,
+            "title": "토익 스피킹 모의고사 풀기",
+            "type": "FLEX",
+            "estimatedTimeRange": "MINUTE_30_TO_60",
+            "focusLevel": 8,
+            "isUrgent": false
+        },
+        {
+            "taskId": 3,
+            "dayPlanId": 1,
+            "title": "채용 공고 확인 및 자소서 작성",
+            "type": "FLEX",
+            "estimatedTimeRange": "HOUR_1_TO_2",
+            "focusLevel": 9,
+            "isUrgent": true
+        },
+        {
+            "taskId": 4,
+            "dayPlanId": 1,
+            "title": "알고리즘 문제 풀이 (코딩테스트)",
+            "type": "FLEX",
+            "estimatedTimeRange": "HOUR_1_TO_2",
+            "focusLevel": 8,
+            "isUrgent": false
+        },
+        {
+            "taskId": 5,
+            "dayPlanId": 1,
+            "title": "헬스장 운동",
+            "type": "FLEX",
+            "estimatedTimeRange": "HOUR_1_TO_2",
+            "focusLevel": 4,
+            "isUrgent": false
+        },
+        {
+            "taskId": 6,
+            "dayPlanId": 1,
+            "title": "방 정리 및 빨래",
+            "type": "FLEX",
+            "estimatedTimeRange": "MINUTE_30_TO_60",
+            "focusLevel": 2,
+            "isUrgent": false
+        },
+        {
+            "taskId": 101,
+            "dayPlanId": 1,
+            "title": "졸업 프로젝트 백엔드 API 구현",
+            "type": "FLEX",
+            "estimatedTimeRange": "HOUR_1_TO_2",
+            "parentScheduleId": 100,
+            "focusLevel": 10,
+            "isUrgent": true
+        },
+        {
+            "taskId": 102,
+            "dayPlanId": 1,
+            "title": "졸업 프로젝트 API 문서 작성",
+            "type": "FLEX",
+            "estimatedTimeRange": "MINUTE_30_TO_60",
+            "parentScheduleId": 100,
+            "focusLevel": 6,
+            "isUrgent": false
+        },
+        {
+            "taskId": 103,
+            "dayPlanId": 1,
+            "title": "졸업 프로젝트 팀원 코드 리뷰",
+            "type": "FLEX",
+            "estimatedTimeRange": "MINUTE_30_TO_60",
+            "parentScheduleId": 100,
+            "focusLevel": 7,
+            "isUrgent": false
+        },
+        {
+            "taskId": 201,
+            "dayPlanId": 1,
+            "title": "정보처리기사 기출 1회독",
+            "type": "FLEX",
+            "estimatedTimeRange": "HOUR_1_TO_2",
+            "parentScheduleId": 200,
+            "focusLevel": 8,
+            "isUrgent": true
+        },
+        {
+            "taskId": 202,
+            "dayPlanId": 1,
+            "title": "오답 노트 정리",
+            "type": "FLEX",
+            "estimatedTimeRange": "MINUTE_30_TO_60",
+            "parentScheduleId": 200,
+            "focusLevel": 7,
+            "isUrgent": true
+        },
+        {
+            "taskId": 203,
+            "dayPlanId": 1,
+            "title": "암기 과목 요약본 암기",
+            "type": "FLEX",
+            "estimatedTimeRange": "MINUTE_30_TO_60",
+            "parentScheduleId": 200,
+            "focusLevel": 6,
+            "isUrgent": false
+        },
+        {
+            "taskId": 900,
+            "dayPlanId": 1,
+            "title": "asdfasdf",
+            "type": "FLEX",
+            "estimatedTimeRange": "MINUTE_UNDER_30"
+        },
+        {
+            "taskId": 901,
+            "dayPlanId": 1,
+            "title": "ㅁㄴㅇㄹ",
+            "type": "FLEX",
+            "estimatedTimeRange": "MINUTE_UNDER_30"
+        },
+        {
+            "taskId": 902,
+            "dayPlanId": 1,
+            "title": "수하굽ㅁ문제 풀기",
+            "type": "FLEX",
+            "estimatedTimeRange": "MINUTE_UNDER_30"
+        },
+        {
+            "taskId": 903,
+            "dayPlanId": 1,
+            "title": "Unknown Gibberish",
+            "type": "FLEX",
+            "estimatedTimeRange": "MINUTE_UNDER_30"
+        }
+    ]
+}

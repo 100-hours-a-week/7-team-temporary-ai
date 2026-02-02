@@ -1,0 +1,31 @@
+# FastAPI and Server
+fastapi==0.128.0
+uvicorn[standard]==0.34.0
+
+# Pydantic for data validation
+pydantic==2.12.5
+pydantic-settings==2.7.0
+
+# Environment variables
+python-dotenv==1.2.1
+
+# Google Generative AI (Gemini) - 새로운 패키지
+google-genai==1.47.0
+google-api-core==2.29.0
+
+# Logfire
+logfire==4.20.0
+opentelemetry-instrumentation-fastapi==0.60b1
+opentelemetry-instrumentation-asgi==0.60b1
+
+# Database
+supabase==2.27.2
+
+# Test
+pytest==8.4.2
+httpx==0.28.1
+
+
+# Monitoring
+langfuse==3.7.0
+urllib3==1.26.20
