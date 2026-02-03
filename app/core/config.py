@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     backend_url: str = "https://stg.molip.today" # 백엔드 URL
 
     # CORS
-    cors_origins: List[str] = ["*"] # 모든 도메인 접근 허용
+    cors_origins: Union[str, List[str]] = ["*"] # 모든 도메인 접근 허용
     
     # Logging
     log_level: str = "INFO" # 로그의 상세 수준
