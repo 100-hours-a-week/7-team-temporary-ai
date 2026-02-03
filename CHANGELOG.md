@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-02-03
+
+### 버그 수정 (Bug Fixes)
+
+1. **CORS_ORIGINS 환경변수 파싱 오류 수정**
+   - **[app/core/config.py](app/core/config.py)**: `Settings` 클래스의 `cors_origins` 필드 타입을 `List[str]`에서 `Union[str, List[str]]`로 변경하여, `.env` 파일에서 콤마로 구분된 문자열(예: `http://a.com,http://b.com`)이 입력되더라도 Pydantic Validation Error 없이 처리되도록 개선.
+   - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**: 관련 `SettingsError` 기록 추가.
+
 ## 2026-02-02
 
 ### 버그 수정 (Bug Fixes)

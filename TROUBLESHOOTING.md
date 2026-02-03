@@ -4,6 +4,14 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
 
 ---
 
+## 2026-02-03
+
+### 1. Pydantic Settings Parsing Error (CORS_ORIGINS)
+- **현상**: 서버 실행 시 `pydantic_settings.sources.SettingsError: error parsing value for field "cors_origins" from source "EnvSettingsSource"` 에러 발생하며 구동 실패.
+- **원인**: `.env` 파일에 `CORS_ORIGINS=url1,url2` 형태로 문자열을 입력했으나, Pydantic의 `List[str]` 타입 필드는 기본적으로 JSON 형식의 리스트 문자열(`["url1", "url2"]`)을 기대하기 때문에 파싱 단계에서 실패함.
+- **해결**: **Type Hint Relaxation**.
+  - `app/core/config.py`의 `cors_origins` 타입을 `Union[str, List[str]]`로 변경하여, raw string 입력도 허용한 후 Validator(`assemble_cors_origins`)에서 리스트로 변환하도록 처리 흐름 개선.
+
 ## 2026-02-02
 
 ### 1. 테스트와 코드의 파라미터 불일치 (DURATION_PARAMS)
