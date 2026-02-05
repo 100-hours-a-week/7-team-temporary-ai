@@ -95,24 +95,22 @@ MOLIP AI 플래너는 정교한 스케줄링을 위해 다음과 같은 세부 �
 
 ---
 
-## Observability (Logfire)
+## Observability (Logfire & LangSmith)
 
-MOLIP AI 서버는 [Logfire](https://logfire.pydantic.dev)를 통해 전체 API 요청 및 LLM 실행 흐름을 추적합니다.
+MOLIP AI 서버는 복잡한 LLM 파이프라인의 가시성을 위해 **Logfire**와 **LangSmith**를 동시에 활용합니다.
 
-### 🌟 주요 기능
-1. **Web Server Metrics**: API 응답 속도, 에러율 자동 수집 (`logfire.instrument_fastapi`)
-2. **LLM Analytics**: 토큰 사용량(비용), 프롬프트/응답 디버깅 (`logfire.span`)
-3. **Structured Logging**: SQL 질의 가능한 형태의 로그 저장
+### 1. Logfire (Application Tracing)
+- **Role**: API 요청 전체 흐름, Python 함수 실행 시간, 에러 추적.
+- **Integration**: `logfire.instrument_fastapi` 및 `@logfire.instrument`.
+- **Dashboard**: [Logfire Console](https://logfire.pydantic.dev)
 
-## LLM Observability (Langfuse)
-
-복잡한 LLM 파이프라인의 디버깅 및 모니터링을 위해 [Langfuse](https://langfuse.com/)를 사용합니다. (이전 LangSmith 대치)
-
-- **설정**: `.env` 파일에 `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`가 설정되어 있어야 합니다.
-- **용도**: 로컬 및 배포 환경에서 LLM의 입력(Prompt), 출력(Response), Token 사용량(Cost)을 상세하게 추적.
-- **특징**:
-  - `@observe` 데코레이터를 사용하여 함수 단위의 실행 이력을 자동으로 수집합니다.
-  - 짧은 프로세스(테스트 코드 등)에서는 로그 유실 방지를 위해 `flush()`를 명시적으로 호출합니다.
+### 2. LangSmith (LLM Workflow Tracing)
+- **Role**: **LangGraph** 기반의 플래너 생성 로직(Node 1~5)의 상태 전이(State Transition)와 재시도(Retry) 과정을 시각화.
+- **Integration**: `.env`에 `LANGCHAIN_TRACING_V2=true` 설정 시 자동 활성화.
+- **Dashboard**: [LangSmith Console](https://smith.langchain.com)
+- **Key Features**:
+  - **Cycle Visualization**: Loop로 구현된 재시도 로직을 그래프 형태로 직관적으로 확인.
+  - **State Inspection**: 각 노드 사이를 이동하는 `PlannerGraphState` 데이터 변화 추적.
 
 
 ---

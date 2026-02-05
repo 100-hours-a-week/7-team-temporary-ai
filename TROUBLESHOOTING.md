@@ -4,6 +4,18 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
 
 ---
 
+## 2026-02-05
+
+### 1. LangGraph 모듈 없음 (ModuleNotFoundError)
+- **현상**: `tests/test_graph.py` 실행 시 `ModuleNotFoundError: No module named 'langgraph'` 발생.
+- **원인**: `requirements.txt`에는 추가했으나, 로컬 가상환경(venv)에 패키지를 설치하지 않은 상태에서 테스트를 실행함.
+- **해결**: `pip install -r requirements.txt` 명령어를 실행하여 의존성 설치 완료.
+
+### 2. LangSmith 환경 변수 미적용
+- **현상**: `.env`에 `LANGCHAIN_TRACING_V2=true`를 설정했으나 LangSmith 대시보드에 로그가 남지 않음.
+- **원인**: `app/main.py` 등 진입점에서 `load_dotenv()`가 `langgraph`나 `logfire` 모듈이 임포트되기 전에 호출되어야 환경 변수가 라이브러리 초기화 시점에 적용됨.
+- **해결**: `app/main.py` 최상단(임포트 구문 전)에 `load_dotenv()` 호출 위치를 확인하고, 서버 재시작 시 정상 적용됨을 확인.
+
 ## 2026-02-03
 
 ### 1. Pydantic Settings Parsing Error (CORS_ORIGINS)

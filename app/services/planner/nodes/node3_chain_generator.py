@@ -12,21 +12,19 @@ from app.models.planner.errors import map_exception_to_error_code, is_retryable_
 
 logger = logging.getLogger(__name__)
 
-@logfire.instrument  # [Logfire] Instrument
+@logfire.instrument
 async def node3_chain_generator(state: PlannerGraphState) -> PlannerGraphState:
     """
-    Node 3: 작업 체인 생성 (Task Chain Generator)
+    Node 3: 작업 체인 생성 (Single Attempt for LangGraph)
     - LLM을 활용하여 시간대별(MORNING/AFTERNOON...) 작업 분배 후보 4-6개 생성
-    - 가용량(Capacity) 및 사용자 선호 시간대(focusTimeZone) 고려
+    - 실패 시 retry_node3 카운트 증가 및 에러 기록
     """
     task_features = state.taskFeatures
     free_sessions = state.freeSessions
     
-    # 1. 입력 준비
-    # 시간대별 가용 용량 계산 (분 단위)
+    # 입력 준비
     capacity = calculate_capacity(free_sessions)
     
-    # Fixed Task 추출 (Prompt Context용)
     fixed_tasks_list = []
     if state.fixedTasks:
         for t in state.fixedTasks:
@@ -45,99 +43,87 @@ async def node3_chain_generator(state: PlannerGraphState) -> PlannerGraphState:
     )
     
     client = get_gemini_client()
-    max_retries = 4
-    candidates_result: List[ChainCandidate] = []
     
-    # 2. LLM 호출 및 파싱 (재시도 로직)
-    for attempt in range(max_retries + 1):
-        try:
-            logger.info(f"Node 3 체인 생성 시도 {attempt + 1}/{max_retries + 1}")
+    try:
+        logger.info(f"Node 3 체인 생성 시도 (Retry: {state.retry_node3})")
+        
+        response_json = await client.generate(
+            system=NODE3_SYSTEM_PROMPT,
+            user=user_input_str
+        )
+        
+        # 응답 검증
+        if not isinstance(response_json, dict) or "candidates" not in response_json:
+            raise ValueError("Invalid JSON format: missing 'candidates' key")
+        
+        raw_candidates = response_json.get("candidates", [])
+        if not isinstance(raw_candidates, list) or len(raw_candidates) == 0:
+            raise ValueError("No candidates returned from LLM")
+        
+        # 객체 변환
+        valid_candidates = []
+        for item in raw_candidates:
+            chainId = item.get("chainId")
+            queues = item.get("timeZoneQueues")
+            tags = item.get("rationaleTags", [])
             
-            response_json = await client.generate(
-                system=NODE3_SYSTEM_PROMPT,
-                user=user_input_str
+            # 필수 필드 검사
+            if not chainId or not queues:
+                continue
+            
+            cand = ChainCandidate(
+                chainId=chainId,
+                timeZoneQueues=queues, 
+                rationaleTags=tags
             )
             
-            # 응답 검증
-            if not isinstance(response_json, dict) or "candidates" not in response_json:
-                raise ValueError("Invalid JSON format: missing 'candidates' key")
-            
-            raw_candidates = response_json.get("candidates", [])
-            if not isinstance(raw_candidates, list) or len(raw_candidates) == 0:
-                raise ValueError("No candidates returned from LLM")
-            
-            # 객체 변환
-            valid_candidates = []
-            for item in raw_candidates:
-                chainId = item.get("chainId")
-                queues = item.get("timeZoneQueues")
-                tags = item.get("rationaleTags", [])
-                
-                # 필수 필드 검사
-                if not chainId or not queues:
-                    continue
-                
-                # 큐 검증 (MORNING, etc 존재 여부)
-                # (간단히 pass, Pydantic validation에서 걸러짐 or default dict)
-                
-                # ChainCandidate 생성 (Pydantic validation)
-                cand = ChainCandidate(
-                    chainId=chainId,
-                    timeZoneQueues=queues, # Dict[TimeZone, List[int]]
-                    rationaleTags=tags
-                )
-                
-                # --- Integrity Check (Strict) ---
-                # 1. Hallucination Check: All taskIds must be in task_features
-                valid_ids = set(task_features.keys())
-                for tz, q in cand.timeZoneQueues.items():
-                    for tid in q:
-                        if tid not in valid_ids:
-                            raise ValueError(f"AI hallucinated invalid taskId {tid} in queue {tz}")
+            # Integrity Check
+            valid_ids = set(task_features.keys())
+            for tz, q in cand.timeZoneQueues.items():
+                for tid in q:
+                    if tid not in valid_ids:
+                        raise ValueError(f"AI hallucinated invalid taskId {tid} in queue {tz}")
 
-                # 2. Key Check: Must have at least one valid candidate structure (Implicit by Pydantic)
-                      
-                valid_candidates.append(cand)
+            valid_candidates.append(cand)
+        
+        if not valid_candidates:
+            raise ValueError("No valid candidates parsed (List is empty)")
             
-            if not valid_candidates:
-                raise ValueError("No valid candidates parsed (List is empty)")
-                
-            candidates_result = valid_candidates
-            break # 성공
-            
-        except Exception as e:
-            # 에러 매핑 및 재시도 여부 판단
-            error_code = map_exception_to_error_code(e)
-            is_retryable = is_retryable_error(error_code)
+        # 성공 시 State 업데이트
+        result_state = state.model_copy(update={
+            "chainCandidates": valid_candidates,
+            # retry count는 유지
+        })
+        
+        logfire.info("Node 3 Result (Success)", result=result_state)
+        return result_state
+        
+    except Exception as e:
+        error_msg = str(e)
+        error_code = map_exception_to_error_code(e)
+        logger.warning(f"Node 3 Failed: {error_msg} (Code: {error_code.value})")
+        
+        # 실패 시 state 업데이트
+        return state.model_copy(update={
+            "retry_node3": state.retry_node3 + 1,
+            "warnings": state.warnings + [f"Node 3 Error: {error_msg}"]
+        })
 
-            logger.warning(f"Node 3 Attempt {attempt + 1} failed: {e} (Code: {error_code.value})")
-            
-            if not is_retryable:
-                logger.error(f"Node 3: Non-retryable error encountered ({error_code.value}). Stopping retries.")
-                break # 재시도 불가능한 에러는 즉시 중단 (Fallback으로 이동)
-            
-            # 지수 백오프 적용 (Exponential Backoff)
-            if attempt < max_retries:
-                delay = 1.0 * (2 ** attempt)  # 1s, 2s, 4s, 8s...
-                logger.info(f"Node 3: Retrying in {delay} seconds... (Attempt {attempt + 1}/{max_retries})")
-                await asyncio.sleep(delay)
-
-            if attempt == max_retries:
-                logger.error("Node 3 Max retries reached. Using Fallback.")
+@logfire.instrument
+def node3_fallback(state: PlannerGraphState) -> PlannerGraphState:
+    """
+    Node 3 Fallback: 모든 재시도 실패 시 Fallback Chain 생성 (1회)
+    """
+    logger.error(f"Node 3 Fallback Triggered after {state.retry_node3} retries.")
     
-    # 3. 실패 시 Fallback 전략
-    if not candidates_result:
-        candidates_result = [_create_fallback_chain(state)]
+    fallback_chain = _create_fallback_chain(state) # 내부 함수 재사용
     
-    # 4. State 업데이트
     result_state = state.model_copy(update={
-        "chainCandidates": candidates_result,
-        "retry_node3": state.retry_node3 # 재시도 횟수 등은 필요 시 증가
+        "chainCandidates": [fallback_chain],
+        "warnings": state.warnings + ["Node 3 Fallback applied"]
     })
     
-    # [Logfire] 결과 명시적 기록
-    logfire.info("Node 3 Result", result=result_state)
-    
+    logfire.info("Node 3 Fallback Result", result=result_state)
     return result_state
 
 def _create_fallback_chain(state: PlannerGraphState) -> ChainCandidate:

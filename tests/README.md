@@ -22,15 +22,23 @@ python -m unittest tests/test_connectivity.py
 ```
 
 ### 2. `test_logic_mock.py`
-- **목적**: LangGraph 파이프라인 비즈니스 로직 검증
+- **목적**: 개별 노드(Node 1~5) 단위 로직 검증 (Legacy)
 - **주요 기능**:
   - `unittest.mock`을 사용하여 LLM 응답을 가상(Mock)으로 대체.
-  - Node 1(구조) → Node 5(배정) 전체 흐름이 의도대로 동작하는지 검증.
-  - **최신 로직 반영**: 부모 작업(Container) 필터링 및 "ERROR" 카테고리 작업의 `EXCLUDED` 처리 로직 포함.
-  - Pydantic 모델 유효성 검사 및 데이터 흐름 확인.
+  - 각 노드 함수의 단독 실행 및 결과 검증.
 - **실행**:
 ```bash
 python -m unittest tests/test_logic_mock.py
+```
+
+### 3. `test_graph.py` (New)
+- **목적**: **LangGraph 파이프라인** 전체 통합 검증
+- **주요 기능**:
+  - `planner_graph.ainvoke(state)`를 호출하여, 실제 그래프 엔진 위에서 상태가 올바르게 전이되는지 확인.
+  - Node 1/3의 재시도(Retry) 및 조건부 엣지(Conditional Edge) 로직이 포함된 전체 흐름 테스트.
+- **실행**:
+```bash
+python -m unittest tests/test_graph.py
 ```
 
 ### 3. `test_duration_constraints.py`
