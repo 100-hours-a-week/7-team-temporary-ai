@@ -41,7 +41,7 @@ pip install -r requirements.txt
 ### 3. 테스트 진행
 ```bash
 # 약 3초 소요
-pytest tests/
+python -m pytest tests/
 ```
 
 ### 4. 환경 변수 설정
