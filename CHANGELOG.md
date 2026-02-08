@@ -4,8 +4,46 @@
 
 ---
 
-## 2026-02-03
+## 2026-02-08
 
+### 개인화 데이터 DB 적재 가이드 작성 (Personalization DB Guide)
+
+**목적**: 백엔드에서 AI 데이터베이스에 사용자 플래너 데이터(`USER_FINAL`)를 직접 적재하기 위한 명확한 스키마 및 구현 가이드를 제공함.
+
+#### 주요 문서
+- **2026-02-08**: `/ai/v1/personalizations/ingest` API 명세 및 구현 변경 (Simplified Schema: `userIds`, `targetDate`).
+- **2026-02-08**: DB Guide creation (`AI_DB_Personalization_Schema.md`).
+**[AI_DB_Personalization_Schema.md](AI_DB_Personalization_Schema.md)** (신규)
+   - **Step-by-Step 가이드**: `planner_records` -> `record_tasks` -> `schedule_histories` 순서의 적재 프로세스 상세화.
+   - **ID 매핑 전략**: `RETURNING id` 패턴을 사용하여 상위 테이블의 Auto-Increment PK를 하위 테이블의 FK로 전달하는 로직 명시.
+   - **데이터 구분**: 백엔드는 오직 `USER_FINAL` 타입만 적재하며, AI가 생성한 `AI_DRAFT`는 저장하지 않음을 명확히 규정.
+
+## 2026-02-05
+
+### LangGraph 도입 및 플래너 구조 리팩토링
+
+**목적**: 기존의 순차적(Logic-based) 실행 흐름을 **Stateful Graph** 기반으로 전환하여, 복잡한 재시도(Retry) 로직을 그래프의 순환(Cycle) 구조로 시각화하고 LangSmith를 통한 모니터링 효율을 극대화함.
+
+#### 주요 변경 사항
+
+1. **[app/graphs/planner_graph.py](app/graphs/planner_graph.py)** (신규)
+   - **LangGraph Definition**: `Start` -> `Node 1` -> `Node 2` -> `Node 3` -> `Node 4` -> `Node 5` -> `End`의 흐름을 정의.
+   - **Cyclic Retry**: Node 1(구조 분석)과 Node 3(체인 생성) 실패 시, 내부 `for` 루프 대신 **Conditional Edge**를 통해 노드를 재방문하도록 구현 (LangSmith에서 Retry 횟수 시각적 확인 가능).
+
+2. **노드 리팩토링 (Retry Loop 제거)**
+   - **[app/services/planner/nodes/node1_structure.py](app/services/planner/nodes/node1_structure.py)**: 내부 `max_retries` 루프를 제거하고, 1회 실행 후 성공/실패 상태를 반환하도록 간소화.
+   - **[app/services/planner/nodes/node3_chain_generator.py](app/services/planner/nodes/node3_chain_generator.py)**: 동일하게 내부 루프 제거 및 Fallback 로직 분리(`node3_fallback`).
+
+3. **[app/api/v1/endpoints/planners.py](app/api/v1/endpoints/planners.py)**
+   - **Execution Engine 교체**: 기존 함수 순차 호출 방식을 `planner_graph.ainvoke(state)`로 변경.
+
+4. **[requirements.txt](requirements.txt)**
+   - **Dependency**: `langgraph`, `langchain-core` 추가.
+
+5. **[tests/test_graph.py](tests/test_graph.py)** (신규)
+   - **Integration Test**: LangGraph 파이프라인 전체를 Mocking 된 LLM과 함께 실행하여 상태 전이(State Transition) 및 최종 결과 검증.
+
+## 2026-02-03
 ### 버그 수정 (Bug Fixes)
 
 1. **CORS_ORIGINS 환경변수 파싱 오류 수정**

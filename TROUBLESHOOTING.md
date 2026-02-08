@@ -4,6 +4,32 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
 
 ---
 
+## 2026-02-08
+
+### 1. 422 Unprocessable Entity (Personalization Ingest)
+- **Issue**: `/ai/v1/personalizations/ingest` 호출 시 `422 Unprocessable Entity` 에러 발생.
+- **Cause**: API 명세가 변경되어 `schedules`, `scheduleHistories` 등의 복잡한 객체 대신 `userIds`와 `targetDate`만 요구함.
+- **Solution**: Request Body를 `{ "userIds": [...], "targetDate": "YYYY-MM-DD" }` 형태로 수정할 것.
+
+### 2. DB 적재 시 FK 매핑 누락 (Auto-Increment ID)
+- **현상**: `planner_records` 테이블에 데이터를 INSERT 했으나, 그 ID를 알 수 없어 하위 테이블(`record_tasks`)에 `record_id`를 채울 수 없는 문제 예상.
+- **원인**: PK(`id`)가 DB에서 Auto-Increment로 생성되므로, 애플리케이션 레벨에서는 INSERT 직전까지 ID를 알 수 없음.
+- **해결**: **RETURNING 절 활용**.
+  - `INSERT INTO ... RETURNING id` 쿼리를 사용하여, 저장과 동시에 생성된 ID를 반환받도록 가이드함.
+  - 반환받은 ID를 메모리에 변수로 저장해두었다가, 이어지는 `record_tasks` INSERT 시 `record_id` 값으로 바인딩하여 무결성 유지.
+
+## 2026-02-05
+
+### 1. LangGraph 모듈 없음 (ModuleNotFoundError)
+- **현상**: `tests/test_graph.py` 실행 시 `ModuleNotFoundError: No module named 'langgraph'` 발생.
+- **원인**: `requirements.txt`에는 추가했으나, 로컬 가상환경(venv)에 패키지를 설치하지 않은 상태에서 테스트를 실행함.
+- **해결**: `pip install -r requirements.txt` 명령어를 실행하여 의존성 설치 완료.
+
+### 2. LangSmith 환경 변수 미적용
+- **현상**: `.env`에 `LANGCHAIN_TRACING_V2=true`를 설정했으나 LangSmith 대시보드에 로그가 남지 않음.
+- **원인**: `app/main.py` 등 진입점에서 `load_dotenv()`가 `langgraph`나 `logfire` 모듈이 임포트되기 전에 호출되어야 환경 변수가 라이브러리 초기화 시점에 적용됨.
+- **해결**: `app/main.py` 최상단(임포트 구문 전)에 `load_dotenv()` 호출 위치를 확인하고, 서버 재시작 시 정상 적용됨을 확인.
+
 ## 2026-02-03
 
 ### 1. Pydantic Settings Parsing Error (CORS_ORIGINS)
