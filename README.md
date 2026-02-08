@@ -139,7 +139,7 @@ MOLIP-AI/
 │   │       └── node3_prompt.py      # [Prompt] Node 3 (체인 생성)용 프롬프트
 │   ├── models/
 │   │   ├── __init__.py
-│   │   ├── personalization.py        # [Model] 개인화 데이터 수집 요청/응답 모델
+│   │   ├── personalization.py        # [Model] 개인화 데이터 수집 요청/응답 모델 (userIds, targetDate)
 │   │   ├── planner/                 # [Model] AI 플래너 도메인 모델
 │   │   │   ├── request.py           # [Req] API 요청 스키마
 │   │   │   ├── response.py          # [Res] API 응답 스키마

@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-02-08
+
+### 개인화 데이터 DB 적재 가이드 작성 (Personalization DB Guide)
+
+**목적**: 백엔드에서 AI 데이터베이스에 사용자 플래너 데이터(`USER_FINAL`)를 직접 적재하기 위한 명확한 스키마 및 구현 가이드를 제공함.
+
+#### 주요 문서
+- **2026-02-08**: `/ai/v1/personalizations/ingest` API 명세 및 구현 변경 (Simplified Schema: `userIds`, `targetDate`).
+- **2026-02-08**: DB Guide creation (`AI_DB_Personalization_Schema.md`).
+**[AI_DB_Personalization_Schema.md](AI_DB_Personalization_Schema.md)** (신규)
+   - **Step-by-Step 가이드**: `planner_records` -> `record_tasks` -> `schedule_histories` 순서의 적재 프로세스 상세화.
+   - **ID 매핑 전략**: `RETURNING id` 패턴을 사용하여 상위 테이블의 Auto-Increment PK를 하위 테이블의 FK로 전달하는 로직 명시.
+   - **데이터 구분**: 백엔드는 오직 `USER_FINAL` 타입만 적재하며, AI가 생성한 `AI_DRAFT`는 저장하지 않음을 명확히 규정.
+
 ## 2026-02-05
 
 ### LangGraph 도입 및 플래너 구조 리팩토링

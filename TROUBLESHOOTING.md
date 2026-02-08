@@ -4,6 +4,20 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
 
 ---
 
+## 2026-02-08
+
+### 1. 422 Unprocessable Entity (Personalization Ingest)
+- **Issue**: `/ai/v1/personalizations/ingest` 호출 시 `422 Unprocessable Entity` 에러 발생.
+- **Cause**: API 명세가 변경되어 `schedules`, `scheduleHistories` 등의 복잡한 객체 대신 `userIds`와 `targetDate`만 요구함.
+- **Solution**: Request Body를 `{ "userIds": [...], "targetDate": "YYYY-MM-DD" }` 형태로 수정할 것.
+
+### 2. DB 적재 시 FK 매핑 누락 (Auto-Increment ID)
+- **현상**: `planner_records` 테이블에 데이터를 INSERT 했으나, 그 ID를 알 수 없어 하위 테이블(`record_tasks`)에 `record_id`를 채울 수 없는 문제 예상.
+- **원인**: PK(`id`)가 DB에서 Auto-Increment로 생성되므로, 애플리케이션 레벨에서는 INSERT 직전까지 ID를 알 수 없음.
+- **해결**: **RETURNING 절 활용**.
+  - `INSERT INTO ... RETURNING id` 쿼리를 사용하여, 저장과 동시에 생성된 ID를 반환받도록 가이드함.
+  - 반환받은 ID를 메모리에 변수로 저장해두었다가, 이어지는 `record_tasks` INSERT 시 `record_id` 값으로 바인딩하여 무결성 유지.
+
 ## 2026-02-05
 
 ### 1. LangGraph 모듈 없음 (ModuleNotFoundError)

@@ -41,7 +41,7 @@ python -m unittest tests/test_logic_mock.py
 python -m unittest tests/test_graph.py
 ```
 
-### 3. `test_duration_constraints.py`
+### 4. `test_duration_constraints.py`
 - **목적**: 작업 시간 제약 조건 및 분할 로직 검증
 - **주요 기능**:
   - `MINUTE_UNDER_30`이 30-40분으로 설정되었는지 확인.
@@ -50,6 +50,16 @@ python -m unittest tests/test_graph.py
 - **실행**:
 ```bash
 python -m unittest tests/test_duration_constraints.py
+```
+
+### 5. `test_personalization_ingest_api.py` (New)
+- **목적**: `/ai/v1/personalizations/ingest` API 엔드포인트 검증
+- **주요 기능**:
+  - `userIds`와 `targetDate`를 포함한 유효한 요청에 대해 200 OK 응답 확인.
+  - 필수 필드 누락 시 422 에러 반환 확인.
+- **실행**:
+```bash
+python -m pytest tests/test_personalization_ingest_api.py
 ```
 
 ---
