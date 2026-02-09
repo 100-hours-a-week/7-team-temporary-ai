@@ -1,6 +1,6 @@
 {
     "user": {
-        "userId": 123456789,
+        "userId": 1111111111,
         "gender": "MALE",
         "age": 26,
         "focusTimeZone": "EVENING",
@@ -9,7 +9,7 @@
     "schedules": [
         {
             "taskId": 1,
-            "dayPlanId": 101,
+            "dayPlanId": 1111111111,
             "title": "팀 주간회의",
             "status": "DONE",
             "type": "FIXED",
@@ -23,7 +23,7 @@
         },
         {
             "taskId": 2,
-            "dayPlanId": 101,
+            "dayPlanId": 1111111111,
             "title": "통계학 실습 과제",
             "status": "DONE",
             "type": "FLEX",
@@ -37,7 +37,7 @@
         },
         {
             "taskId": 3,
-            "dayPlanId": 101,
+            "dayPlanId": 1111111111,
             "title": "운동",
             "status": "TODO",
             "type": "FLEX",
@@ -51,7 +51,7 @@
         },
         {
             "taskId": 4,
-            "dayPlanId": 101,
+            "dayPlanId": 1111111111,
             "title": "독서",
             "status": "TODO",
             "type": "FLEX",
@@ -66,7 +66,7 @@
     ],
     "scheduleHistories": [
         {
-            "scheduleId": 2,
+            "scheduleId": 1111111112,
             "eventType": "ASSIGN_TIME",
             "prevStartAt": null,
             "prevEndAt": null,
@@ -75,7 +75,7 @@
             "createdAt": "2026-01-10T19:05:10.123456"
         },
         {
-            "scheduleId": 2,
+            "scheduleId": 1111111112,
             "eventType": "MOVE_TIME",
             "prevStartAt": "20:30",
             "prevEndAt": "22:00",
@@ -84,7 +84,7 @@
             "createdAt": "2026-01-10T19:10:40.456789"
         },
         {
-            "scheduleId": 2,
+            "scheduleId": 1111111112,
             "eventType": "CHANGE_DURATION",
             "prevStartAt": "21:15",
             "prevEndAt": "22:15",
