@@ -13,6 +13,12 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
 - **해결**: **Unused Import Removal**.
   - `app/db/repositories/planner_repository.py`에서 불필요한 `from app.models.personalization import AssignmentStatus` 라인을 삭제하여 해결.
 
+### 2. Parent Schedule ID 저장 누락 (DB Insert Miss)
+- **현상**: 플래너 생성 결과는 정상적이나, `record_tasks` 테이블에 `parent_schedule_id`가 저장되지 않아 하위 작업의 관계가 유실됨.
+- **원인**: API 요청 객체(`ArrangementState`)에는 값이 있으나, Repository의 `save_ai_draft` 메서드에서 DB Insert용 딕셔너리로 옮길 때 해당 필드 매핑이 누락됨.
+- **해결**: **Field Mapping Addition**.
+  - `app/db/repositories/planner_repository.py`에 `parent_schedule_id: original_task.parentScheduleId` 매핑 코드를 추가하여 해결.
+
 ## 2026-02-08
 
 ### 1. 422 Unprocessable Entity (Personalization Ingest)

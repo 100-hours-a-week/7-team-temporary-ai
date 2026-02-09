@@ -13,7 +13,11 @@
    - **[app/db/repositories/planner_repository.py](app/db/repositories/planner_repository.py)**: `AssignmentStatus`를 `app.models.personalization`에서 import하려다 실패하는 문제 수정 (불필요한 import 제거).
    - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**: 관련 이슈 및 해결 과정 업데이트.
 
+2. **Parent Schedule ID 저장 누락 수정**
+   - **[app/db/repositories/planner_repository.py](app/db/repositories/planner_repository.py)**: `save_ai_draft` 시 `parent_schedule_id`가 DB에 저장되지 않는 문제 수정. (`planner_records` -> `record_tasks` 저장 로직에 필드 매핑 추가)
 
+
+## 2026-02-08
 
 ### 개인화 데이터 DB 적재 가이드 작성 (Personalization DB Guide)
 
