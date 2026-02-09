@@ -4,7 +4,7 @@ from typing import List, Optional
 from app.db.supabase_client import get_supabase_client
 from app.models.planner.internal import PlannerGraphState, TaskFeature
 from app.models.planner.response import AssignmentResult
-from app.models.personalization import AssignmentStatus
+
 
 class PlannerRepository:
     def __init__(self):

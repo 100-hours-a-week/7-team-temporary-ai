@@ -4,7 +4,16 @@
 
 ---
 
-## 2026-02-08
+
+## 2026-02-09
+
+### 버그 수정 (Bug Fixes)
+
+1. **Supabase 데이터 저장 실패 수정 (ImportError)**
+   - **[app/db/repositories/planner_repository.py](app/db/repositories/planner_repository.py)**: `AssignmentStatus`를 `app.models.personalization`에서 import하려다 실패하는 문제 수정 (불필요한 import 제거).
+   - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**: 관련 이슈 및 해결 과정 업데이트.
+
+
 
 ### 개인화 데이터 DB 적재 가이드 작성 (Personalization DB Guide)
 
