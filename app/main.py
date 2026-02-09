@@ -19,7 +19,7 @@ import logfire
 # Logfire 설정 (관측성)
 logfire.configure(token=settings.logfire_token, send_to_logfire='if-token-present')
 
-VERSION = "26.01.29 - POST /ai/v1/planners 배포 완료"
+VERSION = "26.02.09 - V1 MVP 구현 완료 & 개인화 AI 엔드포인트 수정"
 
 # 로깅 설정
 logging.basicConfig(
