@@ -4,7 +4,7 @@ from typing import List, Optional
 from app.db.supabase_client import get_supabase_client
 from app.models.planner.internal import PlannerGraphState, TaskFeature
 from app.models.planner.response import AssignmentResult
-from app.models.personalization import AssignmentStatus
+
 
 class PlannerRepository:
     def __init__(self):
@@ -94,6 +94,7 @@ class PlannerRepository:
                     "record_id": record_id,
                     "task_id": task_id,
                     "day_plan_id": original_task.dayPlanId,
+                    "parent_schedule_id": original_task.parentScheduleId,
                     "title": original_task.title,
                     "status": "TODO", 
                     "task_type": "FLEX",
@@ -151,6 +152,7 @@ class PlannerRepository:
                     "record_id": record_id,
                     "task_id": ft.taskId,
                     "day_plan_id": ft.dayPlanId,
+                    "parent_schedule_id": ft.parentScheduleId,
                     "title": ft.title,
                     "status": "TODO",
                     "task_type": "FIXED",
