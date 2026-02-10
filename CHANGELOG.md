@@ -37,8 +37,25 @@
    - **Integration**: `runpod` Python 라이브러리를 활용하여 실제 Pod 제어.
    - **Environment**: `.env`의 `RUNPOD_API_KEY` 및 `RUNPOD_POD_ID`를 기본값으로 사용하여 별도 파라미터 입력 없이도 실행 가능.
 
-2. **[app/api/v1/__init__.py](app/api/v1/__init__.py)**
    - **Router Registration**: `/runpod` 프리픽스로 라우터 등록.
+
+### 정기 작업 스케줄링 (Scheduled Tasks)
+
+**목적**: 주기적인 시스템 상태 점검 및 플래그 생성을 위해 백그라운드 스케줄러를 도입하고, 한국 시간(Asia/Seoul) 기준으로 정확한 타이밍에 작업을 수행함.
+
+#### 주요 변경 사항
+
+1. **[app/main.py](app/main.py)**
+   - **APScheduler 통합**: `AsyncIOScheduler`를 도입하여 비동기 작업 스케줄링 구현.
+   - **Lifespan Context Manager**: FastAPI의 최신 수명 주기 관리 방식인 `lifespan`을 적용하여 스케줄러의 시작(Start)과 종료(Shutdown)를 안전하게 처리.
+   - **Timezone Aware**: `ZoneInfo("Asia/Seoul")`을 적용하여 서버 로컬 시간대와 관계없이 한국 시간 기준으로 작업 실행 보장.
+
+2. **스케줄링 정책 (Scheduling Policy)**
+   - **5분 주기**: 매 5분마다 상태 플래그 생성 로그 기록.
+   - **매 시간 특정 분**: 매 시간 `03, 13, 27, 37, 41, 48, 56`분에 실행되는 정교한 크론(Cron) 스케줄링 적용.
+
+3. **관측성 (Logfire)**
+   - 스케줄러가 실행하는 모든 작업 내부에 `logfire.info()`를 심어, 백그라운드 작업의 실행 여부를 대시보드에서 실시간 모니터링 가능하도록 구현.
 
 ## 2026-02-09
 

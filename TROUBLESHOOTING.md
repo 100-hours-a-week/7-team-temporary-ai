@@ -43,6 +43,18 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
   - `start.py`, `stop.py`의 로직을 그대로 사용하되, FastAPI 엔드포인트로 래핑.
   - `RUNPOD_POD_ID` 환경 변수를 Default 값으로 주입하여, Swagger에서 "Execute" 버튼만 누르면 즉시 동작하도록 UX 개선.
 
+### 4. 스케줄러 타임존 불일치 (Timezone Mismatch)
+- **현상**: 로컬에서는 정상 동작하던 스케줄러가 클라우드(UTC) 환경에서는 예상치 못한 시간에 실행됨.
+- **원인**: `CronTrigger` 사용 시 타임존을 명시하지 않으면 서버 시스템 시간(주로 UTC)을 따르기 때문.
+- **해결**: **Explicit Timezone Injection**.
+  - `zoneinfo.ZoneInfo("Asia/Seoul")` 객체를 생성하여 스케줄러 트리거의 `timezone` 파라미터로 명시적으로 전달.
+
+### 5. FastAPI Lifespan vs Startup Events
+- **현상**: 스케줄러와 같은 Long-running 리소스를 `on_event("startup")`에서 관리할 경우, 종료 시점의 리소스 해제가 불확실하거나 코드가 분산됨.
+- **해결**: **Lifespan Context Manager 도입**.
+  - `app/main.py`에 `@asynccontextmanager`를 정의하여 `yield`를 기준으로 시작과 종료 로직을 한 곳에서 관리.
+  - 스케줄러의 `start()`와 `shutdown()`을 단일 컨텍스트 내에서 안전하게 처리.
+
 ## 2026-02-08
 
 ### 1. 422 Unprocessable Entity (Personalization Ingest)
