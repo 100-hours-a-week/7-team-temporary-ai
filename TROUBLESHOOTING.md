@@ -37,6 +37,12 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
 - **해결**: **Field Mapping Addition**.
   - `app/db/repositories/planner_repository.py`에 `parent_schedule_id: original_task.parentScheduleId` 매핑 코드를 추가하여 해결.
 
+### 3. RunPod 제어 통합 (Server-side Control)
+- **요구사항**: 터미널 스크립트(`start.py`, `stop.py`)로만 가능한 RunPod 제어를 서버 API로 통합하고, Swagger UI에서 즉시 실행해보고 싶음.
+- **해결**: **Dedicated API Endpoints Backend Integration**.
+  - `start.py`, `stop.py`의 로직을 그대로 사용하되, FastAPI 엔드포인트로 래핑.
+  - `RUNPOD_POD_ID` 환경 변수를 Default 값으로 주입하여, Swagger에서 "Execute" 버튼만 누르면 즉시 동작하도록 UX 개선.
+
 ## 2026-02-08
 
 ### 1. 422 Unprocessable Entity (Personalization Ingest)

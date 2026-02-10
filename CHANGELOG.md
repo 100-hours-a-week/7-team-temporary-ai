@@ -26,6 +26,20 @@
    - **LangSmith 제거**: `app/main.py` 및 관련 코드에서 `LangSmith` 초기화 로직 및 주석 제거.
    - **Langfuse 유지**: `logfire`와 함께 `langfuse`를 메인 모니터링 도구로 유지.
 
+### RunPod 제어 API 통합 (RunPod Control)
+
+**목적**: FastAPI 서버에서 RunPod 인스턴스의 시작(Start)과 중지(Stop)를 직접 제어할 수 있는 엔드포인트를 제공하여, 운영 효율성을 높이고 Swagger UI를 통한 간편한 테스트 환경을 구축함.
+
+#### 주요 변경 사항
+
+1. **[app/api/v1/endpoints/runpod_control.py](app/api/v1/endpoints/runpod_control.py)** (신규)
+   - **Endpoints**: `POST /ai/v1/runpod/start`, `POST /ai/v1/runpod/stop` 구현.
+   - **Integration**: `runpod` Python 라이브러리를 활용하여 실제 Pod 제어.
+   - **Environment**: `.env`의 `RUNPOD_API_KEY` 및 `RUNPOD_POD_ID`를 기본값으로 사용하여 별도 파라미터 입력 없이도 실행 가능.
+
+2. **[app/api/v1/__init__.py](app/api/v1/__init__.py)**
+   - **Router Registration**: `/runpod` 프리픽스로 라우터 등록.
+
 ## 2026-02-09
 
 ### 버그 수정 (Bug Fixes)
