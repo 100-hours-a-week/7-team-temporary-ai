@@ -27,7 +27,7 @@ httpx==0.28.1
 
 
 # Monitoring
-langchain-core==0.3.33
-langgraph==0.2.69
 langfuse==3.7.0
 urllib3==1.26.20
+runpod==1.8.1
+apscheduler==3.10.4

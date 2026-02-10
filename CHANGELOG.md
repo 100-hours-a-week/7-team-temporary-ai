@@ -5,6 +5,41 @@
 ---
 
 
+
+## 2026-02-10
+
+### LangGraph 및 LangSmith 제거 (Dependency Cleanup)
+
+**목적**: 프로젝트의 복잡도를 낮추고 의존성을 경량화하기 위해, `LangGraph` 기반의 오케스트레이션을 제거하고 자체 구현한 파이프라인으로 전환함. 또한 불필요한 `LangSmith` 통합을 제거하여 모니터링 스택을 `Langfuse`로 일원화함.
+
+#### 주요 변경 사항
+
+1. **오케스트레이션 엔진 교체 (Orchestration Replacement)**
+   - **LangGraph 제거**: `app/graphs/planner_graph.py` 삭제 및 `langgraph`, `langchain-core` 라이브러리 제거.
+   - **Custom Pipeline**: `app/api/v1/endpoints/planners.py`에서 노드 함수(Node 1~5)를 순차적으로 호출하는 직관적인 선형 파이프라인(Linear Pipeline)으로 재구현.
+
+2. **노드 리팩토링 (Retry Logic Restoration)**
+   - **Internal Retry 복원**: LangGraph의 `Conditional Edge`에 의존하던 재시도 로직을 각 노드 내부(`node1_structure.py`, `node3_chain_generator.py`)의 `for` 루프 및 `try-except` 블록으로 복원. (구형 코드베이스의 안정적인 로직 차용)
+   - **Node 5 Rollback**: 시간 배정 로직(`node5_time_assignment.py`)을 검증된 구버전 로직으로 원복하여 안정성 확보.
+
+3. **모니터링 정리 (LangSmith Cleanup)**
+   - **LangSmith 제거**: `app/main.py` 및 관련 코드에서 `LangSmith` 초기화 로직 및 주석 제거.
+   - **Langfuse 유지**: `logfire`와 함께 `langfuse`를 메인 모니터링 도구로 유지.
+
+### RunPod 제어 API 통합 (RunPod Control)
+
+**목적**: FastAPI 서버에서 RunPod 인스턴스의 시작(Start)과 중지(Stop)를 직접 제어할 수 있는 엔드포인트를 제공하여, 운영 효율성을 높이고 Swagger UI를 통한 간편한 테스트 환경을 구축함.
+
+#### 주요 변경 사항
+
+1. **[app/api/v1/endpoints/runpod_control.py](app/api/v1/endpoints/runpod_control.py)** (신규)
+   - **Endpoints**: `POST /ai/v1/runpod/start`, `POST /ai/v1/runpod/stop` 구현.
+   - **Integration**: `runpod` Python 라이브러리를 활용하여 실제 Pod 제어.
+   - **Environment**: `.env`의 `RUNPOD_API_KEY` 및 `RUNPOD_POD_ID`를 기본값으로 사용하여 별도 파라미터 입력 없이도 실행 가능.
+
+2. **[app/api/v1/__init__.py](app/api/v1/__init__.py)**
+   - **Router Registration**: `/runpod` 프리픽스로 라우터 등록.
+
 ## 2026-02-09
 
 ### 버그 수정 (Bug Fixes)
