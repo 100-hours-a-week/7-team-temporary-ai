@@ -3,6 +3,11 @@ from app.models.planner.request import ArrangementState
 from app.models.planner.response import PlannerResponse, AssignmentResult
 from app.models.planner.internal import PlannerGraphState, FreeSession
 from app.models.planner.weights import WeightParams
+from app.services.planner.nodes.node1_structure import node1_structure_analysis
+from app.services.planner.nodes.node2_importance import node2_importance
+from app.services.planner.nodes.node3_chain_generator import node3_chain_generator
+from app.services.planner.nodes.node4_chain_judgement import node4_chain_judgement
+from app.services.planner.nodes.node5_time_assignment import node5_time_assignment
 from app.services.planner.utils.session_utils import calculate_free_sessions
 import time
 import logfire
@@ -34,7 +39,7 @@ async def generate_planner(
     )
 ):
     """
-    LangGraph Pipeline-based Planner Generation (V1)
+    Custom Linear Pipeline-based Planner Generation (V1)
     """
     start_time = time.time()
     trace_id = str(uuid.uuid4())
@@ -72,15 +77,21 @@ async def generate_planner(
             # [Logfire] Initial State Logging
             logfire.info("Initial State", state=state)
             
-            # 2. Pipeline Execution (LangGraph)
-            from app.graphs.planner_graph import planner_graph
+            # 2. Pipeline Execution
+            # Node 1
+            state = await node1_structure_analysis(state)
             
-            # LangGraph 실행 (returns dict)
-            result_dict = await planner_graph.ainvoke(state)
+            # Node 2
+            state = node2_importance(state)
             
-            # Dict -> Pydantic Model 변환 (이후 로직 호환성 유지)
-            # Pydantic v2에서 model_validate 사용 가능
-            state = PlannerGraphState.model_validate(result_dict)
+            # Node 3
+            state = await node3_chain_generator(state)
+            
+            # Node 4
+            state = node4_chain_judgement(state)
+            
+            # Node 5
+            state = node5_time_assignment(state)
             
             # 3. Response Construction
             final_results = state.finalResults

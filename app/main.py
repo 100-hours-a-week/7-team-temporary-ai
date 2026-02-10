@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# .env 파일 로드 (LangSmith 등 환경변수 적용)
+# .env 파일 로드
 load_dotenv()
 
 from app.core.config import settings

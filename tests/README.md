@@ -31,16 +31,6 @@ python -m unittest tests/test_connectivity.py
 python -m unittest tests/test_logic_mock.py
 ```
 
-### 3. `test_graph.py` (New)
-- **목적**: **LangGraph 파이프라인** 전체 통합 검증
-- **주요 기능**:
-  - `planner_graph.ainvoke(state)`를 호출하여, 실제 그래프 엔진 위에서 상태가 올바르게 전이되는지 확인.
-  - Node 1/3의 재시도(Retry) 및 조건부 엣지(Conditional Edge) 로직이 포함된 전체 흐름 테스트.
-- **실행**:
-```bash
-python -m unittest tests/test_graph.py
-```
-
 ### 4. `test_duration_constraints.py`
 - **목적**: 작업 시간 제약 조건 및 분할 로직 검증
 - **주요 기능**:

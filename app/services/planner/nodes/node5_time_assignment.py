@@ -335,4 +335,3 @@ def _append_child_to_result(results: List[AssignmentResult], parent_id: int,
         startAt=start,
         endAt=end
     ))
-
