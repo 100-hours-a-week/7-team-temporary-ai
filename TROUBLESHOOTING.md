@@ -8,6 +8,39 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
 
 ## 2026-02-10
 
+### RunPod vLLM 구동 시행착오 및 최종 해결 (Trial & Error & Solution)
+
+**목적**: RunPod 환경에서 `vLLM`을 안정적으로 구동하기 위해 발생했던 다양한 오류들을 분석하고, 이를 모두 해결한 최종 실행 커맨드(Start Command)를 도출함.
+
+#### 1. 발생했던 오류 목록 (Encountered Errors)
+
+1.  **컨테이너 즉시 종료 (Immediate Exit)**
+    *   **현상**: Pod를 실행하자마자 "Exited" 상태로 꺼짐.
+    *   **원인**: Docker 컨테이너의 진입점(Command)이 즉시 종료되는 프로세스였기 때문.
+    *   **해결**: 초기에는 `sleep infinity`를 사용했으나, 최종적으로는 vLLM 서버를 포그라운드(`--port 8000`)로 실행하여 컨테이너 유지.
+
+2.  **CUDA 드라이버 호환성 (Driver Mismatch)**
+    *   **현상**: `vllm:latest` 사용 시 CUDA 버전 에러 발생.
+    *   **해결**: 호환성이 확인된 `vllm/vllm-openai:v0.6.3.post1` 이미지 사용.
+
+3.  **모델 경로 인식 실패 (Model Not Found)**
+    *   **현상**: 모델 로드 중 `OSError: does not appear to have a file named config.json` 발생.
+    *   **해결**: `--model` 파라미터에 상대 경로 대신 `/workspace/model/Llama-3.1-8B-Instruct` 절대 경로를 사용하여 해결.
+
+4.  **OOM (Out Of Memory) 및 KV Cache 오류**
+    *   **현상**: 모델 가중치 로드 후 `CUDA out of memory`가 발생하거나, 요청 처리 중 강제 종료.
+    *   **해결**:
+        *   `--max-model-len 8192`: 모델의 최대 컨텍스트 길이를 8192 토큰으로 제한하여 VRAM 요구량 감소.
+        *   `--gpu-memory-utilization 0.95`: GPU 메모리의 95%를 vLLM이 사용하도록 설정(기본값보다 적극적으로 할당하여 파편화 방지).
+
+#### 2. 최종 해결 커맨드 (Final Start Command)
+
+위의 모든 문제를 해결하고, RunPod의 **Container Start Command**에 적용하여 정상 구동에 성공한 명령어는 다음과 같습니다.
+
+```bash
+--model /workspace/model/Llama-3.1-8B-Instruct --served-model-name Llama-3.1-8B-Instruct --port 8000 --api-key $VLLM_API_KEY --gpu-memory-utilization 0.95 --max-model-len 8192
+```
+
 ### 1. LangGraph 모듈 제거 후 Import 에러
 - **현상**: `langgraph` 제거 후 서버 실행 시 `ModuleNotFoundError: No module named 'langgraph'` 또는 `ImportError` 발생 가능성.
 - **원인**: `app/graphs/planner_graph.py`를 참조하거나, `langgraph`에 의존하던 구버전 코드가 남아있을 경우 발생.

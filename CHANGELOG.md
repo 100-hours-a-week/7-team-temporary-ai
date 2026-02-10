@@ -8,6 +8,20 @@
 
 ## 2026-02-10
 
+### RunPod vLLM 환경 구축 (Setup)
+
+**목적**: 자가 호스팅(Self-hosted) LLM을 운용하기 위해 RunPod 클라우드 환경에 vLLM 서버를 구축하고, Llama-3.1-8B 모델을 적재하여 추론 API를 확보함.
+
+#### 주요 변경 사항
+
+1. **[docs/runpod_setup_guide.md](docs/runpod_setup_guide.md)** (신규)
+   - **Setup Guide**: RunPod Pod 생성(GPU 선정, 템플릿), 모델 다운로드(Huggingface), 자동 실행(Auto-Start) 설정 등 전 과정을 문서화.
+   - **Environment**: CUDA 12.x 호환성을 고려한 `vllm/vllm-openai:v0.6.3.post1` 이미지 선정.
+
+2. **서버 실행 최적화**
+   - **Sleep Mode**: 초기 설정을 위해 컨테이너가 꺼지지 않도록 최소 메모리(GPU 2%) 대기 모드 커맨드 정립.
+   - **Production Mode**: 실제 서빙 시 GPU 메모리 활용률(95%)을 극대화하는 실행 커맨드 구성.
+
 ### LangGraph 및 LangSmith 제거 (Dependency Cleanup)
 
 **목적**: 프로젝트의 복잡도를 낮추고 의존성을 경량화하기 위해, `LangGraph` 기반의 오케스트레이션을 제거하고 자체 구현한 파이프라인으로 전환함. 또한 불필요한 `LangSmith` 통합을 제거하여 모니터링 스택을 `Langfuse`로 일원화함.
