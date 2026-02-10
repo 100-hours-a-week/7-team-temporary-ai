@@ -5,6 +5,24 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
 ---
 
 
+
+## 2026-02-10
+
+### 1. LangGraph 모듈 제거 후 Import 에러
+- **현상**: `langgraph` 제거 후 서버 실행 시 `ModuleNotFoundError: No module named 'langgraph'` 또는 `ImportError` 발생 가능성.
+- **원인**: `app/graphs/planner_graph.py`를 참조하거나, `langgraph`에 의존하던 구버전 코드가 남아있을 경우 발생.
+- **해결**:
+  - `requirements.txt`에서 `langgraph` 제거 확인.
+  - `app/api/v1/endpoints/planners.py`가 새로운 선형 파이프라인(Linear Pipeline)을 사용하는지 확인.
+  - `app/graphs/` 디렉토리 삭제 확인.
+
+### 2. LangSmith API Key 경고
+- **현상**: 서버 로그에 `LANGCHAIN_API_KEY` 미설정 경고가 뜨거나, `LangSmith` 연결 실패 로그가 남음.
+- **원인**: 코드에서 `LangSmith` 관련 로직은 제거되었으나, `.env` 파일에 환경 변수가 남아있거나 `main.py`에 주석 처리가 덜 된 부분이 있을 수 있음.
+- **해결**:
+  - `.env` 파일에서 `LANGCHAIN_` 관련 변수 삭제 (선택 사항, 기능 영향 없음).
+  - `app/main.py`에서 `load_dotenv()` 호출 시점의 주석 및 관련 불필요한 코드 확인.
+
 ## 2026-02-09
 
 ### 1. Supabase 데이터 저장 실패 (ImportError: AssignmentStatus)
