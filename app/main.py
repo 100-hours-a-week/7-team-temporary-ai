@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# .env 파일 로드 (LangSmith 등 환경변수 적용)
+# .env 파일 로드
 load_dotenv()
 
 from app.core.config import settings
@@ -19,7 +19,7 @@ import logfire
 # Logfire 설정 (관측성)
 logfire.configure(token=settings.logfire_token, send_to_logfire='if-token-present')
 
-VERSION = "26.01.29 - POST /ai/v1/planners 배포 완료"
+VERSION = "26.02.10 - V1 Langgraph 라이브러리 삭제, runpod 원격 구동"
 
 # 로깅 설정
 logging.basicConfig(

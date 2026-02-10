@@ -39,7 +39,7 @@ async def generate_planner(
     )
 ):
     """
-    LangGraph Pipeline-based Planner Generation (V1)
+    Custom Linear Pipeline-based Planner Generation (V1)
     """
     start_time = time.time()
     trace_id = str(uuid.uuid4())

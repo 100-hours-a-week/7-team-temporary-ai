@@ -22,18 +22,16 @@ python -m unittest tests/test_connectivity.py
 ```
 
 ### 2. `test_logic_mock.py`
-- **목적**: LangGraph 파이프라인 비즈니스 로직 검증
+- **목적**: 개별 노드(Node 1~5) 단위 로직 검증 (Legacy)
 - **주요 기능**:
   - `unittest.mock`을 사용하여 LLM 응답을 가상(Mock)으로 대체.
-  - Node 1(구조) → Node 5(배정) 전체 흐름이 의도대로 동작하는지 검증.
-  - **최신 로직 반영**: 부모 작업(Container) 필터링 및 "ERROR" 카테고리 작업의 `EXCLUDED` 처리 로직 포함.
-  - Pydantic 모델 유효성 검사 및 데이터 흐름 확인.
+  - 각 노드 함수의 단독 실행 및 결과 검증.
 - **실행**:
 ```bash
 python -m unittest tests/test_logic_mock.py
 ```
 
-### 3. `test_duration_constraints.py`
+### 4. `test_duration_constraints.py`
 - **목적**: 작업 시간 제약 조건 및 분할 로직 검증
 - **주요 기능**:
   - `MINUTE_UNDER_30`이 30-40분으로 설정되었는지 확인.
@@ -42,6 +40,16 @@ python -m unittest tests/test_logic_mock.py
 - **실행**:
 ```bash
 python -m unittest tests/test_duration_constraints.py
+```
+
+### 5. `test_personalization_ingest_api.py` (New)
+- **목적**: `/ai/v1/personalizations/ingest` API 엔드포인트 검증
+- **주요 기능**:
+  - `userIds`와 `targetDate`를 포함한 유효한 요청에 대해 200 OK 응답 확인.
+  - 필수 필드 누락 시 422 에러 반환 확인.
+- **실행**:
+```bash
+python -m pytest tests/test_personalization_ingest_api.py
 ```
 
 ---
