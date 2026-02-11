@@ -31,9 +31,20 @@ class Settings(BaseSettings):
     # API Keys
     gemini_api_key: Optional[str] = None # Gemini API 키
     
+    # RunPod
+    runpod_api_key: Optional[str] = None
+    runpod_pod_id: Optional[str] = None
+    runpod_base_url: Optional[str] = None
+    vllm_api_key: Optional[str] = None # VLLM API Key (for Inference)
+    
     # Supabase
     supabase_url: Optional[str] = None # Supabase URL
     supabase_key: Optional[str] = None # Supabase API 키
+
+    # Langfuse
+    langfuse_public_key: Optional[str] = None
+    langfuse_secret_key: Optional[str] = None
+    langfuse_host: Optional[str] = "https://cloud.langfuse.com"
 
     class Config:
         env_file = ".env" # 환경 변수 파일
@@ -42,3 +53,12 @@ class Settings(BaseSettings):
 
 #인스턴스 생성
 settings = Settings()
+
+# Langfuse 환경 변수 설정 (라이브러리가 os.environ을 사용함)
+import os
+if settings.langfuse_public_key:
+    os.environ["LANGFUSE_PUBLIC_KEY"] = settings.langfuse_public_key
+if settings.langfuse_secret_key:
+    os.environ["LANGFUSE_SECRET_KEY"] = settings.langfuse_secret_key
+if settings.langfuse_host:
+    os.environ["LANGFUSE_HOST"] = settings.langfuse_host

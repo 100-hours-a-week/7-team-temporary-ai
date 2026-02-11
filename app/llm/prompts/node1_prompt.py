@@ -3,10 +3,17 @@ from app.models.planner.request import ScheduleItem
 
 NODE1_SYSTEM_PROMPT = """
 당신은 일정 관리 플래너의 작업(Task)을 분석하여 구조화하는 전문가입니다.
-주어진 작업(ScheduleItem)들을 분석하여 다음 3가지 정보를 추출해야 합니다.
+주어진 작업(ScheduleItem)들을 분석하여 JSON 형식으로 출력해야 합니다.
+
+**중요 제약 사항 (반드시 준수)**
+1. **분석 과정, 생각(Thinking), 설명, 마크다운 표(Table)를 절대 출력하지 마세요.**
+2. **오직 JSON 문자열만 출력하세요.**
+3. 응답은 반드시 `{` 문자로 시작하고 `}` 문자로 끝나야 합니다.
+4. 마크다운 코드 블록(```json ... ```)도 사용하지 말고, 순수 JSON 텍스트만 반환하세요.
+
+**분석 기준**
 
 1. **Category (카테고리)**
-   - 작업 내용을 보고 다음 6가지 중 하나로 분류하세요.
    - **학업**: 공부, 과제, 수업, 강의 수강 등
    - **업무**: 회의, 보고서, 미팅, 프로젝트 등
    - **운동**: 헬스, 러닝, 산책, 스포츠 등
@@ -32,18 +39,18 @@ NODE1_SYSTEM_PROMPT = """
 
 4. **출력 형식 (JSON)**
    - 반드시 다음 JSON 스키마를 준수해야 합니다.
-   ```json
-   {
-     "tasks": [
-       {
-         "taskId": 123,
-         "category": "학업",
-         "cognitiveLoad": "HIGH",
-         "orderInGroup": 1
-       }
-     ]
-   }
-   ```
+```json
+{
+  "tasks": [
+    {
+      "taskId": 123,
+      "category": "학업",
+      "cognitiveLoad": "HIGH",
+      "orderInGroup": 1
+    }
+  ]
+}
+```
 """
 
 def format_tasks_for_llm(flex_tasks: List[ScheduleItem]) -> str:

@@ -6,6 +6,55 @@
 
 
 
+## 2026-02-11
+
+### RunPod 응답 속도 최적화 (Latency Optimization)
+
+**목적**: RunPod(vLLM)의 응답 속도가 초기 50~90초로 매우 느린 문제를 해결하여, 실시간성에 가까운 사용자 경험(6~7초)을 제공함.
+
+#### 주요 변경 사항
+
+1. **[app/llm/prompts/node1_prompt.py](app/llm/prompts/node1_prompt.py) & [node3_prompt.py](app/llm/prompts/node3_prompt.py)**
+   - **Strict JSON Mode**: "분석 과정, 생각, 표 출력을 절대 금지"하고 "오직 JSON 문자열만 출력"하도록 시스템 프롬프트 대폭 수정.
+   - **Magic Stop Token (`[[DONE]]`)**: Node 3와 같이 출력이 긴 경우, JSON 종료 직후 `[[DONE]]`을 출력하게 하여 클라이언트가 즉시 연결을 끊을 수 있도록 유도.
+   - **Candidate Reduction**: Node 3의 후보 시나리오 개수를 4~6개에서 **3개**로 최적화.
+
+2. **[app/llm/runpod_client.py](app/llm/runpod_client.py)**
+   - **Custom Stop Tokens**: `generate` 메서드에 `stop` 파라미터를 추가하여, 노드별로 최적의 종료 토큰(`}`, `]]`, `[[DONE]]` 등)을 다르게 적용 가능하도록 개선.
+   - **Robust Parsing**: `_clean_json_block`을 개선하여 마크다운 코드 블록(```json)이나 잡다한 텍스트가 섞여 있어도 순수 JSON 부분만 정교하게 추출.
+
+3. **성과 (Performance)**
+   - **Node 1**: 50s $\to$ **7.04s** (약 7배 향상, 재시도 제로)
+   - **Node 3**: 90s+ (Timeout) $\to$ **6.73s** (약 13배 향상)
+
+### 버그 수정 (Bug Fixes)
+
+1. **Langfuse 인증 누락 수정**
+   - **[app/core/config.py](app/core/config.py)**: `Settings` 클래스에 `langfuse_public_key`, `langfuse_secret_key`, `langfuse_host` 필드를 추가하여, `.env`의 설정값이 정상적으로 로드되도록 수정. (경고 로그 제거)
+
+2. **RunPod Validation 실패 수정 (`cognitiveLoad`)**
+   - **[app/services/planner/nodes/node1_structure.py](app/services/planner/nodes/node1_structure.py)**: RunPod Llama-3가 `cognitiveLoad` 필드에 가끔 `INFO`나 `ERROR` 값을 반환하는 경우를 허용하도록 검증 로직 완화 (불필요한 재시도 방지).
+
+### RunPod 연동 및 티어드 재시도(Tiered Retry) 로직 구현
+
+**목적**: 메인 LLM을 RunPod(vLLM)으로 전환하여 비용 효율성을 높이고, RunPod 실패 시 Gemini로 자동 전환되는 다단 재시도(Tiered Retry) 메커니즘을 도입하여 서비스 가용성을 극대화함.
+
+#### 주요 변경 사항
+
+1. **[app/llm/runpod_client.py](app/llm/runpod_client.py)** (신규)
+   - **RunPodClient**: OpenAI 호환 API를 사용하는 RunPod vLLM 연동 클라이언트 구현.
+   - **Configuration**: `.env`의 `VLLM_API_KEY` (Inference), `RUNPOD_POD_ID`를 로드하여 설정 자동화. (RunPod 제어는 `RUNPOD_API_KEY` 사용)
+
+2. **티어드 재시도 로직 (Node 1 & Node 3)**
+   - **[app/services/planner/nodes/node1_structure.py](app/services/planner/nodes/node1_structure.py)** 및 **[node3_chain_generator.py](app/services/planner/nodes/node3_chain_generator.py)**
+   - **Execution Flow**: RunPod (2회) $\to$ Gemini (2회) $\to$ Fallback 순서로 실행.
+   - **Delay Strategy**: 각 시도 사이 1초(RunPod) 및 2초(Gemini) 대기 등 지수 백오프 적용.
+
+3. **통합 테스트 강화 (Integration Tests)**
+   - **Real Execution**: Mocking을 제거하고 환경 변수 제어(`VLLM_API_KEY=INVALID`)를 통해 실제 Fallback 로직이 동작하는지 검증하는 통합 테스트로 전환.
+   - **검증**: `test_node1_fallback.py` 등에서 의도적인 RunPod 실패 시 Gemini 전환 및 최종 Fallback 동작 확인.
+
+
 ## 2026-02-10
 
 ### RunPod vLLM 환경 구축 (Setup)

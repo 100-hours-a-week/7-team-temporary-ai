@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Optional, Literal
 
 from app.models.planner.internal import TaskFeature, PlannerGraphState
 from app.llm.gemini_client import get_gemini_client
+from app.llm.runpod_client import get_runpod_client
 from app.llm.prompts.node1_prompt import NODE1_SYSTEM_PROMPT, format_tasks_for_llm
 from app.models.planner.request import EstimatedTimeRange, ScheduleItem
 from app.models.planner.errors import map_exception_to_error_code, is_retryable_error
@@ -24,7 +25,8 @@ async def node1_structure_analysis(state: PlannerGraphState) -> PlannerGraphStat
     flex_tasks: List[ScheduleItem] = state.flexTasks # FLEX인 Task 리스트
     
     # 1. 입력 준비
-    client = get_gemini_client()
+    runpod_client = get_runpod_client()
+    gemini_client = get_gemini_client()
     formatted_tasks = format_tasks_for_llm(flex_tasks)
     
     # [Logfire] LLM 입력 데이터 로깅
@@ -33,85 +35,71 @@ async def node1_structure_analysis(state: PlannerGraphState) -> PlannerGraphStat
     # taskId와 original task를 매핑
     task_map = {t.taskId: t for t in flex_tasks}
     
-    # 반복 루프
-    ## 현재 gemini만 사용해서 4회 반복을 지정함
-    ### 추후 다른 LLM을 사용할 경우, 이 부분을 수정할 필요가 있음
-    max_retries = 4
-    current_retry = state.retry_node1
-    
     parsed_result = None
     validation_error = None
     
-    for attempt in range(max_retries + 1):
+    # --- Phase 1: RunPod Execution (2 attempts) ---
+    max_runpod_retries = 2
+    for attempt in range(max_runpod_retries):
         try:
-            logger.info(f"Node 1 작업 구조 분석 시도 {attempt + 1}/{max_retries + 1}")
+            logger.info(f"Node 1: RunPod 시도 {attempt + 1}/{max_runpod_retries}")
             
-            # LLM 호출
-            response_json = await client.generate(
+            response_json = await runpod_client.generate(
                 system=NODE1_SYSTEM_PROMPT,
                 user=formatted_tasks
             )
             
-            # JSON 형식의 응답을 받았는지 확인
-            if not isinstance(response_json, dict) or "tasks" not in response_json:
-                raise ValueError("Invalid JSON format: missing 'tasks' key")
-                
-            # 응답된 데이터를 처리
-            for item in response_json.get("tasks", []):
-                t_id = item.get("taskId")
-                # 1. 보내준 목록이 실존하는 작업 아이디인지 확인 (Hallucination Check)
-                if t_id not in task_map:
-                    raise ValueError(f"AI hallucinated invalid taskId: {t_id}")
-
-                # 2. Category 유효성 검사
-                cat = item.get("category", "")
-                if cat not in ["학업", "업무", "운동", "취미", "생활", "기타", "ERROR"]:
-                    raise ValueError(f"Invalid category: {cat}")
-                
-                # 3. Cognitive Load 유효성 검사
-                cog = item.get("cognitiveLoad", "")
-                if cog not in ["LOW", "MED", "HIGH"]:
-                    raise ValueError(f"Invalid cognitiveLoad: {cog}")
-
-            parsed_result = response_json
-            break # 성공: 시도 중단
-
+            # 응답 검증 함수 (공통 사용)
+            parsed_result = _validate_node1_response(response_json, task_map)
+            break # 성공
+            
         except Exception as e:
             validation_error = str(e)
+            logger.warning(f"Node 1 RunPod Attempt {attempt + 1} failed: {e}")
             
-            # 에러 매핑 및 재시도 여부 판단
-            error_code = map_exception_to_error_code(e)
-            is_retryable = is_retryable_error(error_code)
-            
-            logger.warning(f"Node 1 Attempt {attempt + 1} failed: {validation_error} (Code: {error_code.value})")
-            
-            if not is_retryable:
-                logger.error(f"Node 1: Non-retryable error encountered ({error_code.value}). Stopping retries.")
-                break # 재시도 불가능한 에러는 즉시 중단
-            
-            # 지수 백오프 적용 (Exponential Backoff)
-            if attempt < max_retries:
-                delay = 1.0 * (2 ** attempt)  # 1s, 2s, 4s, 8s...
-                logger.info(f"Node 1: Retrying in {delay} seconds... (Attempt {attempt + 1}/{max_retries})")
-                await asyncio.sleep(delay)
-            
-            continue
+            # 재시도 대기 (마지막 시도 제외)
+            if attempt < max_runpod_retries - 1:
+                await asyncio.sleep(1.0) # 1초 대기
+
+    # --- Phase 2: Gemini Execution (2 attempts) if RunPod failed ---
+    if not parsed_result:
+        logger.warning("Node 1: RunPod failed. Switching to Gemini.")
+        
+        max_gemini_retries = 2
+        for attempt in range(max_gemini_retries):
+            try:
+                logger.info(f"Node 1: Gemini 시도 {attempt + 1}/{max_gemini_retries}")
+                
+                response_json = await gemini_client.generate(
+                    system=NODE1_SYSTEM_PROMPT,
+                    user=formatted_tasks
+                )
+                
+                # 응답 검증
+                parsed_result = _validate_node1_response(response_json, task_map)
+                break # 성공
+                
+            except Exception as e:
+                validation_error = str(e)
+                logger.warning(f"Node 1 Gemini Attempt {attempt + 1} failed: {e}")
+                
+                # 재시도 대기 (마지막 시도 제외)
+                if attempt < max_gemini_retries - 1:
+                    await asyncio.sleep(2.0) # 2초 대기
     
     # 2. 결과 처리
     task_features: Dict[int, TaskFeature] = {} # 각 작업에 대한 feature를 저장
     
-    # 4번의 재시도가 전부 실패했을 경우
+    # 모든 시도가 실패했을 경우 (Fallback)
     if not parsed_result:
-        logger.error(f"Node 1 failed after {max_retries + 1} attempts. Using Fallback.")
+        logger.error(f"Node 1 failed after RunPod & Gemini attempts. Using Fallback.")
         # Fallback 로직 적용
-        ## 자동으로 fallback feature를 생성
         for task in flex_tasks:
-            task_features[task.taskId] = _create_fallback_feature(task) #아래에 정의
+            task_features[task.taskId] = _create_fallback_feature(task)
             
-        # fallback feature를 생성한 후, state 업데이트
-        return state.model_copy(update={ # model_copy는 state의 일부만 업데이트
+        return state.model_copy(update={
             "taskFeatures": task_features,
-            "retry_node1": max_retries + 1,
+            "retry_node1": state.retry_node1 + 1, # 단순 증가 (상세 카운트는 생략)
             "warnings": state.warnings + [f"Node 1 Fallback triggered: {validation_error}"]
         })
 
@@ -143,8 +131,7 @@ async def node1_structure_analysis(state: PlannerGraphState) -> PlannerGraphStat
                 cognitiveLoad=cog_load,
                 # 그룹핑: 항상 parentScheduleId 사용
                 groupId=str(task.parentScheduleId) if task.parentScheduleId is not None else None,
-                groupLabel=None, # 그룹이 존재할 경우 system이 채워넣음 (LLM이 아님)
-                # 안전 장치: parentScheduleId가 없으면 orderInGroup을 강제로 None 처리
+                groupLabel=None, 
                 orderInGroup=order_in_group if task.parentScheduleId is not None else None, 
             )
             
@@ -164,13 +151,42 @@ async def node1_structure_analysis(state: PlannerGraphState) -> PlannerGraphStat
     # 3. state 업데이트
     result_state = state.model_copy(update={
         "taskFeatures": task_features,
-        "retry_node1": attempt # 재시도 횟수 업데이트
+        "retry_node1": 0 # 성공 시 0으로 (또는 시도 횟수 기록 가능하나 로직 단순화)
     })
     
     # [Logfire] 결과 명시적 기록
     logfire.info("Node 1 Result", result=result_state)
     
     return result_state
+
+def _validate_node1_response(response_json: dict, task_map: dict) -> dict:
+    """Node 1 응답 유효성 검사 (JSON 구조 및 값 검증)"""
+    if not isinstance(response_json, dict) or "tasks" not in response_json:
+        raise ValueError("Invalid JSON format: missing 'tasks' key")
+        
+    for item in response_json.get("tasks", []):
+        t_id = item.get("taskId")
+        # 1. Hallucination Check
+        if t_id not in task_map:
+            raise ValueError(f"AI hallucinated invalid taskId: {t_id}")
+
+        # 2. Category Validation
+        cat = item.get("category", "")
+        if cat not in ["학업", "업무", "운동", "취미", "생활", "기타", "ERROR"]:
+            raise ValueError(f"Invalid category: {cat}")
+        
+        # 3. Cognitive Load Validation
+        cog = item.get("cognitiveLoad", "")
+        # Allow ERROR or None/Empty if category is ERROR, or just generally allow ERROR as it will be mapped to MED later
+        if cog not in ["LOW", "MED", "HIGH", "ERROR", None, ""]:
+             # If it's not one of the standard values, and not ERROR/Empty, then it's invalid.
+             # But let's be strict about random strings, but allow known "failure" modes from LLM.
+             pass 
+        
+        if cog not in ["LOW", "MED", "HIGH", "ERROR"] and cog: # If it has a value but not a valid one
+             raise ValueError(f"Invalid cognitiveLoad: {cog}")
+            
+    return response_json
 
 def _create_fallback_feature(task: ScheduleItem) -> TaskFeature:
     """

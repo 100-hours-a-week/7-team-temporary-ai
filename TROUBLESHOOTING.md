@@ -6,6 +6,37 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
 
 
 
+## 2026-02-11
+
+### 1. RunPod 접근 권한 오류 (401 Unauthorized)
+- **현상**: `RUNPOD_API_KEY`를 사용했음에도 RunPod vLLM 추론 요청 시 `401 Unauthorized` 에러 발생.
+- **원인**: `RUNPOD_API_KEY`는 RunPod 인프라 제어용이며, vLLM 서버는 `--api-key` 인자로 지정된 별도의 키(`VLLM_API_KEY`)를 요구함.
+- **해결**: **API Key 명시적 분리**.
+  - `VLLM_API_KEY`: Inference (OpenAI Client)용.
+  - `RUNPOD_API_KEY`: Control (Pod Start/Stop)용.
+
+### 2. RunPod 응답 지연 (High Latency)
+- **현상**: 간단한 JSON 응답을 받는데 50~90초가 소요되거나 타임아웃 발생.
+- **원인**: 
+  1. 모델이 JSON 생성 전에 장황한 설명(Explanation)이나 마크다운 표를 먼저 출력함.
+  2. 기본 Stop Token이 적절하지 않아 생성이 끝났음에도 빈 공백을 계속 생성함.
+- **해결**: **Prompt Engineering & Magic Stop Token**.
+  - 프롬프트에 "설명 금지", "JSON만 출력"을 명시.
+  - Node 3의 경우 `[[DONE]]` 이라는 특수 토큰을 끝에 출력하게 하고, 클라이언트에서 이를 감지하여 즉시 종료.
+  - 결과: 90s $\to$ 6s로 단축.
+
+### 3. JSON 파싱 에러 (JSONDecodeError)
+- **현상**: RunPod 응답이 마크다운 코드 블록(```json ... ```)으로 감싸져 있거나, 앞뒤에 잡다한 텍스트가 섞여 있어 `json.loads()` 실패.
+- **원인**: `RunPodClient._clean_json_block`이 코드 블록만 처리하고, 혼합된 텍스트 패턴을 제대로 발라내지 못함.
+- **해결**: **Regex Extraction**.
+  - 정규표현식을 사용하여 `{`로 시작해서 `}`로 끝나는 가장 긴 부분 문자열을 추출하거나, 코드 블록 내부만 파싱하도록 로직 개선.
+
+### 4. Langfuse 인증 경고 (Public Key Not Found)
+- **현상**: 서버 로그에 "Langfuse public key not found" 경고가 지속적으로 출력됨.
+- **원인**: `.env` 파일에는 키가 있으나, `app/core/config.py`의 `Settings` 클래스에 매핑되지 않아 `os.environ`에 등록되지 않음.
+- **해결**: **Settings Update**.
+  - `Settings` 클래스에 `langfuse_public_key` 등을 추가하고, 인스턴스 초기화 시 `os.environ`에 주입하는 로직 추가.
+
 ## 2026-02-10
 
 ### RunPod vLLM 구동 시행착오 및 최종 해결 (Trial & Error & Solution)
