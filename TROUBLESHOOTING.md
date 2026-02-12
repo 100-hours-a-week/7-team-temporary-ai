@@ -33,6 +33,19 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
 - **해결**: **Template-First Approach**.
   - RunPod Web Console의 템플릿 설정(Environment Variables)에 `HF_TOKEN`, `VLLM_API_KEY`를 미리 입력해두고, 스크립트에서는 이를 덮어쓰지 않도록(제거) 하여 관리 포인트 일원화.
 
+### 5. RunPod Serverless "In Queue" 무한 대기 (2026-02-12)
+- **현상**: 엔드포인트 생성 후 로그상으로는 vLLM이 정상 구동(`Uvicorn running on ...`)되었으나, 대시보드에서는 계속 "In Queue" 상태로 머묾. GPU 할당이 되지 않거나 요청이 처리되지 않음.
+- **원인 분석**:
+  1. **Health Check 실패**: vLLM 기본 경로는 `/`에서 404를 반환하므로, RunPod Health Check가 실패하여 워커를 "Ready"로 인식하지 못함. -> `/health`로 변경 필요.
+  2. **Handler 부재**: `vllm/vllm-openai` 이미지는 웹 서버일 뿐, RunPod Queue에서 작업을 가져오는 핸들러가 내장되어 있지 않음.
+  3. **GPU 재고 부족**: 특정 리전(EU-RO-1)의 RTX 4090 재고 부족으로 인한 물리적 할당 지연 가능성.
+- **시도한 해결책**:
+  - `runpod_wrapper.py` 작성하여 커스텀 핸들러 주입 시도.
+  - 템플릿의 커맨드(`bash -c ...`) 수정 시도.
+- **최종 조치 (Resolution)**: **Gemini API로 전략 수정 (Pivot)**.
+  - Serverless 설정(커스텀 이미지, 핸들러, 리전 락 등)에 과도한 리소스가 투입됨을 확인.
+  - MVP 단계에서는 관리형 API(Gemini)를 사용하여 비즈니스 로직 구현에 집중하고, RunPod은 추후 고도화 단계에서 도입하기로 결정.
+
 ## 2026-02-11
 
 ### 1. RunPod 접근 권한 오류 (401 Unauthorized)

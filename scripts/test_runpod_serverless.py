@@ -9,6 +9,7 @@ load_dotenv()
 # 환경 변수 설정
 RUNPOD_API_KEY = os.getenv("RUNPOD_API_KEY")
 RUNPOD_TEMPLATE_ID = os.getenv("RUNPOD_TEMPLATE_ID")
+RUNPOD_VOLUME_ID = "4pgq049t7u" # EU-RO-1 Volume
 
 if not RUNPOD_API_KEY:
     print("Error: RUNPOD_API_KEY not found in .env")
@@ -31,12 +32,12 @@ def create_endpoint():
             name="MOLIP-AI-Test-Endpoint",
             template_id=RUNPOD_TEMPLATE_ID,
             gpu_ids="ADA_24", # RTX 4090 (24GB VRAM)
-            # locations="EU", # 특정 지역 강제하지 않음 (가용성 우선)
+            locations="EU", # 특정 지역 강제하지 않음 (가용성 우선)
             workers_min=1, # 항상 1개가 켜져있도록 설정 (Cold Start 방지)
-            workers_max=1, # 최대 1개만 실행
-            idle_timeout=300, # 테스트를 위해 짧게 설정 (5분)
+            workers_max=1, # 최대 2개만 실행
+            idle_timeout=3600, # 테스트를 위해 짧게 설정 (5분)
             flashboot=False, # FlashBoot 끔 (호환성 문제 배제)
-            # env={...} # 템플릿에 설정된 값 사용하도록 주석 처리 또는 삭제
+            network_volume_id=RUNPOD_VOLUME_ID, # 네트워크 볼륨 연결
         )
         print("✅ Endpoint Created Successfully!")
         print(f"Endpoint ID: {endpoint['id']}")

@@ -25,6 +25,21 @@
 2. **환경 변수 구성**
    - **[.env](.env)**: `RUNPOD_TEMPLATE_ID`, `RUNPOD_API_KEY`, `VLLM_API_KEY` 등 필수 키 동작 확인 및 가이드 업데이트.
 
+### 🚀 전략 변경: Gemini API 도입 (MVP 우선)
+- **배경**: RunPod Serverless의 GPU 할당 지연(Queue Stuck) 및 커스텀 핸들러 설정 복잡도로 인해 개발 속도 저하.
+- **결정**: 서비스의 핵심 가치(MVP)를 빠르게 검증하기 위해 **Google Gemini Pro API**를 메인 LLM으로 우선 도입.
+- **향후 계획**: 서비스 안정화 후 RunPod Serverless(Llama 3.1)는 **비용 절감 및 파인튜닝 모델 서빙** 목적으로 재도입 예정.
+
+### 🛠️ RunPod Serverless 개발 진척 (잠정 중단)
+- **Network Volume 구축**:
+    - `EU-RO-1` 리전에 40GB 볼륨 생성 및 `Llama-3.1-8B-Instruct` 모델 다운로드 완료.
+    - `scripts/download_model.sh` 유틸리티 스크립트 작성.
+- **Serverless Handler 개발**:
+    - `scripts/runpod_wrapper.py`: vLLM 서버와 RunPod Queue를 연결하는 래퍼 스크립트 구현.
+    - `scripts/test_runpod_serverless.py`: 엔드포인트 생성/삭제/테스트 자동화 스크립트 고도화.
+- **트러블슈팅 데이터 확보**:
+    - 워커 종료(Exit Code 2), 네트워크 볼륨 마운트 경로(`/workspace` vs `/runpod-volume`), 헬스 체크 경로(`/health`) 이슈 해결 및 기록.
+
 ## 2026-02-11
 
 ### RunPod 응답 속도 최적화 (Latency Optimization)
