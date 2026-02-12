@@ -6,6 +6,25 @@
 
 
 
+## 2026-02-12
+
+### RunPod Serverless 테스트 스크립트 구현 (Standalone Script)
+
+**목적**: RunPod Serverless Endpoint의 생성(Create)과 삭제(Terminate)를 로컬에서 즉시 테스트하고 검증할 수 있는 독립형 스크립트를 구현함.
+
+#### 주요 변경 사항
+
+1. **[scripts/test_runpod_serverless.py](scripts/test_runpod_serverless.py)** (신규)
+   - **Endpoint Creation**: `runpod.create_endpoint`를 사용하여 RTX 4090(`ADA_24`) GPU 기반의 Serverless Worker 생성.
+   - **Configuration**:
+     - `workers_min=1`: Cold Start 방지를 위해 최소 1개 워커 상시 유지.
+     - `idle_timeout=3600`: 최대 허용치인 1시간으로 설정하여 빈번한 재시작 방지.
+     - `flashboot=False`: 호환성 확보를 위해 FlashBoot 비활성화 (기본값).
+   - **Endpoint Termination**: `runpod` 라이브러리의 기능 누락을 해결하기 위해 GraphQL Mutation(`deleteEndpoint`) 직접 호출 구현.
+
+2. **환경 변수 구성**
+   - **[.env](.env)**: `RUNPOD_TEMPLATE_ID`, `RUNPOD_API_KEY`, `VLLM_API_KEY` 등 필수 키 동작 확인 및 가이드 업데이트.
+
 ## 2026-02-11
 
 ### RunPod 응답 속도 최적화 (Latency Optimization)
