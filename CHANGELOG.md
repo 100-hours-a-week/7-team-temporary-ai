@@ -6,6 +6,33 @@
 
 
 
+## 2026-02-12
+
+### 주간 레포트 API 명세 고도화 및 백엔드 기반 구축
+
+**목적**: 주간 레포트 분석 범위를 4주로 확대하고, AI 서버가 직접 데이터를 저장하는 효율적인 아키텍처로 전환함. 또한 대량 사용자 처리를 위한 배치 API 구조를 도입함.
+
+#### 주요 변경 사항
+
+1. **주간 레포트 API 명세 업데이트 (v2)**
+   - **분석 범위 확대**: 조회 컨텍스트를 기존 1주에서 **최근 4주**로 확장하여 더 깊은 분석 제공.
+   - **직접 저장 방식 채택**: AI 서버가 생성된 레포트를 직접 Supabase의 `weekly_reports` 테이블에 저장. 백엔드에는 응답값(content) 대신 성공 여부와 `reportId`만 반환하여 네트워크 부하 감소.
+   - **배치 처리 지원 (Batch)**: 단일 유저 처리가 아닌, 한 번의 호출로 여러 명의 사용(`users` 리스트)을 처리할 수 있도록 모델 변경.
+   - **날짜 포맷 표준화**: `baseTime` (ISO 8601)에서 **`baseDate` (YYYY-MM-DD)**로 변경하여 DB `DATE` 타입과 일원화.
+
+2. **DB 스키마 추가 (`docs/DB_SCHEMA_AND_API.md`)**
+   - **`weekly_reports` 테이블**: 레포트 본문(`content`) 및 기준 날짜(`base_date`)를 저장하는 스키마 추가.
+   - **인덱스 최적화**: `report_id` 및 (`user_id`, `base_date`) 복합 인덱스 추가.
+
+3. **백엔드 API Skeleton 구현**
+   - **v2 라우터 도입**: `app/api/v2` 경로를 신설하고 엔드포인트(`POST /ai/v2/reports/weekly`) 구현.
+   - **Pydantic 모델 (`app/models/report.py`)**: 배치 요청 및 응답을 위한 스키마 정의.
+   - **메인 루프 통합**: `app/main.py`에 v2 라우터를 등록하여 서비스 준비 완료.
+
+4. **API 예시 데이터 관리 최적화**
+   - **외부 JSON 관리**: Swagger UI용 예시 데이터를 모델 코드에서 분리하여 `tests/data/`의 JSON 파일로 외주화.
+   - **동적 로딩**: `load_example` 헬퍼를 도입하여 코드를 건드리지 않고 JSON 수정만으로 API 문서를 최신화할 수 있도록 개선.
+
 ## 2026-02-10
 
 ### LangGraph 및 LangSmith 제거 (Dependency Cleanup)

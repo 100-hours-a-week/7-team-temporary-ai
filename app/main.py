@@ -13,13 +13,13 @@ from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()
 
 from app.core.config import settings
-from app.api import v1
+from app.api import v1, v2
 import logfire
 
 # Logfire 설정 (관측성)
 logfire.configure(token=settings.logfire_token, send_to_logfire='if-token-present')
 
-VERSION = "26.02.10 - Langgraph 라이브러리 오류 - 라이브러리 자체를 제거 & 과거 코드로 롤백"
+VERSION = "26.02.12 - 주간 레포트 생성 API 엔드포인트 추가"
 
 # 로깅 설정
 logging.basicConfig(
@@ -51,6 +51,7 @@ app.add_middleware(
 # 라우터 등록
 ## 외부 파일에 정의된 API 경로들을 앱에 포함
 app.include_router(v1.router, prefix="/ai/v1") # v1 통합 라우터 등록
+app.include_router(v2.router, prefix="/ai/v2") # v2 통합 라우터 등록
 
 # Health Check 엔드포인트
 ## 서버가 정상적으로 실행 중인지 확인

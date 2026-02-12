@@ -1,0 +1,13 @@
+{
+    "baseDate": "2026-01-12",
+    "users": [
+        {
+            "userId": 101,
+            "reportId": 9001
+        },
+        {
+            "userId": 102,
+            "reportId": 9002
+        }
+    ]
+}

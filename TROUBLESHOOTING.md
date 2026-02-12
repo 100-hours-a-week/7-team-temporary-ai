@@ -6,6 +6,26 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
 
 
 
+## 2026-02-12
+
+### 1. API 파라미터 불일치 (baseTime vs baseDate)
+- **현상**: DB 스키마에는 `base_date`가 `DATE` 타입으로 정의되었으나, 초기 API 명세 및 Pydantic 모델에서는 시분초가 포함된 `ISO 8601` 포맷(`baseTime`)을 사용함.
+- **원인**: 주간 레포트의 분석 기간(월-일)을 정의하는 '날짜' 개념과 API 호출의 '시점' 개념이 설계 과정에서 혼용됨.
+- **해결**: **Schema Synchronization**.
+  - API 필드명을 `baseDate`로 변경하고, 포맷을 `YYYY-MM-DD`로 통일하여 DB 저장 및 조회 시의 형변환 오버헤드를 제거함.
+
+### 2. 주간 레포트 유효성 검사 과제약 (Monday Validation)
+- **현상**: `WeeklyReportGenerateRequest` 모델에서 `baseDate`가 월요일이 아닐 경우 `ValueError`를 발생시켜 요청이 차단됨.
+- **원인**: 주간 레포트는 반드시 월요일을 시작점으로 해야 한다는 비즈니스 규칙을 API 수준에서 강제하려 함.
+- **해결**: **Requirement Relaxation**.
+  - API 레벨에서의 강경한 차단 대신, 백엔드 로직에서 보정하거나 혹은 특정 날짜를 기준으로 과거 4주를 자유롭게 분석할 수 있도록 해당 검증 로직을 제거함.
+
+### 3. Pydantic 모델의 하드코딩된 예시 데이터 관리
+- **현상**: Swagger UI용 예시 데이터가 Python 파일 내부에 길게 작성되어 있어 비즈니스 로직(모델 정의)의 가독성을 해침.
+- **원인**: 초기 빠른 프로토타이핑을 위해 `Field(example=...)` 또는 `model_config`에 직접 데이터를 입력함.
+- **해결**: **External Resource Mapping**.
+  - `tests/data/` 디렉토리에 JSON 파일로 예시 데이터를 분리하고, `json_schema_extra`에서 `load_example()` 헬퍼 함수를 호출하도록 구조화하여 코드와 데이터를 분리함.
+
 ## 2026-02-10
 
 ### 1. LangGraph 모듈 제거 후 Import 에러
