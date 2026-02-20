@@ -4,7 +4,59 @@
 
 ---
 
+## 2026-02-20
 
+### 주간 레포트 생성 API (POST /ai/v2/reports/weekly) 구현 및 안정성 강화
+
+**목적**: 사용자의 과거 4주간 플래너 데이터를 기반으로 Markdown 형식의 주간 레포트를 생성하고, 대량 사용자 요청(Batch) 및 외부 LLM API(Gemini) 장애에 탄력적으로 대응할 수 있는 견고한 백그라운드 파이프라인을 구축함.
+
+#### 주요 변경 사항
+
+1. **DB Repository 구현 (`app/db/repositories/report_repository.py`)**
+   - **데이터 Fetch**: `baseDate` 기준 과거 4주간의 `planner_records`와 하위 `record_tasks`(`USER_FINAL` 타입)를 Join하여 가져오는 로직 구현.
+   - **결과 Upsert**: AI가 생성한 최종 Markdown 레포트를 `weekly_reports` 테이블에 안전하게 저장(`upsert`)하는 로직 추가.
+
+2. **LLM 처리 로직 고도화 (`app/llm/prompts/report_prompt.py`, `app/llm/gemini_client.py`)**
+   - **데이터 포맷팅**: 4주치 DB 기록을 카테고리, 예상/진행 시간, 가동률 등으로 요약하여 LLM 텍스트 프롬프트 인풋으로 변환하는 전처리(`format_report_data_for_llm`) 함수 작성.
+   - **Gemini Client 고도화**: 단일 JSON 응답뿐만 아니라 Markdown(Text) 생성을 지원하도록 `generate_text` 메서드 추가.
+
+3. **코어 서비스 및 무한 재시도 로직 (`app/services/report/weekly_report_service.py`)**
+   - **모델 Fallback 전략**: `gemini-3-flash-preview` 모델을 최우선으로 사용하여 최대 4회 재시도하고, 실패(503 Error 등) 시 `gemini-2.5-flash` 모델로 전환하여 성공할 때까지 지수 백오프(Exponential Backoff)를 적용해 무한 재시도(Infinite Retry)하는 강력한 장애 대응 로직 구현.
+   - **Batch 파이프라인**: 다수 유저 리스트(`users`)를 비동기로 받아 순차/병렬적으로 처리하는 파이프라인 구축.
+
+4. **API 엔드포인트 비동기 처리 (`app/api/v2/endpoints/reports.py`)**
+   - **Background Tasks 연동**: 클라이언트 API 호출 시 즉각적인 200 OK(Success)를 반환하고, 무거운 분석 및 LLM 생성 로직은 서버의 백그라운드 태스크로 위임하여 타임아웃 방지 및 응답성 극대화.
+
+5. **단위 테스트 작성 (`tests/test_weekly_report.py`)**
+   - **Mocking 검증**: 외부 API(Gemini) 호출 비용이나 DB 실제 쓰기 없이 동작을 검증하는 독립적인 클라우드 세이프(Cloud-safe) 테스트 슈트 추가.
+   - **시나리오 테스트**: 정상 생성 케이스 및 4회 실패 후 5번째에 Fallback 모델로 성공하는 예외 케이스(무한 재시도 루프)에 대한 검증 코드 작성 완료.
+
+---
+## 2026-02-16
+
+### 주간 레포트 조회 API (Weekly Report Fetch API) 추가
+
+**목적**: 백엔드가 생성된 주간 레포트 데이터를 배치(Batch)로 효율적으로 조회할 수 있는 전용 API를 신설하여, 데이터 흐름의 완결성을 확보하고 프론트엔드 연동을 지원함.
+
+#### 주요 변경 사항
+
+1. **API 엔드포인트 신설 (3-2)**
+   - **엔드포인트**: `POST /ai/v2/reports/weekly/fetch`
+   - **기능**: `(userId, reportId)` 목록을 입력받아 가변적인 수의 레포트 데이터를 한 번에 조회.
+   - **부분 성공 지원**: 개별 항목별로 `SUCCESS`, `NOT_FOUND` 등의 상태를 반환하여 유연한 에러 핸들링 가능.
+
+2. **데이터 모델 최적화 (Simplify)**
+   - **필드 통합**: 기존 기획의 `title`, `summary`, `feedback` 등 파편화된 필드를 제거하고, 전체 내용을 담는 단일 **`content` (Markdown Text)** 필드로 통합.
+   - **이유**: LLM 생성 텍스트의 유연성을 높이고, 프론트엔드에서 Markdown 렌더링을 일관되게 처리하기 위함.
+
+3. **API 명세서 품질 향상 (Documentation Quality)**
+   - **구조 개선**: Request/Response 모델 정의와 실제 사용 예시(Example) 섹션을 명확히 분리하여 가독성 강화.
+   - **스키마 명세**: 예시 데이터 JSON에 타입 주석(`// BIGINT`, `// Markdown`)을 추가하여 개발자 이해도 증진.
+   - **에러 시나리오 확충**: `400 Bad Request` 외에도 `401 Unauthorized`, `500 Internal Server Error` 등 다양한 에러 상황에 대한 구체적인 응답 예시 추가.
+
+4. **Status Code 표준화**
+   - **FUNCTION_NAME 추가**: `WEEKLY_REPORT_FETCH`를 API별 Status Code 리스트에 등재.
+   - **상태 코드 정의**: 조회 API 전용 상태 코드(`WEEKLY_REPORT_FETCH_SUCCESS` 등) 체계 수립.
 
 ## 2026-02-12
 

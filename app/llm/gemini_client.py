@@ -71,6 +71,54 @@ class GeminiClient:
                 # Span will automatically capture the exception
                 raise e
 
+    @observe(as_type="generation")
+    async def generate_text(self, system: str, user: str, model_name: str = "gemini-3-flash-preview") -> str:
+        """
+        Gemini API를 호출하여 Markdown 등 단순 텍스트(String) 응답을 반환
+        """
+        with logfire.span(f"Gemini Generation ({model_name})") as span:
+            span.set_attribute("gen_ai.system", system)
+            span.set_attribute("gen_ai.request.model", model_name)
+            span.set_attribute("gen_ai.prompt", user)
+            
+            try:
+                response = self.client.models.generate_content(
+                    model=model_name,
+                    contents=[
+                        types.Content(
+                            role="user",
+                            parts=[types.Part.from_text(text=user)]
+                        )
+                    ],
+                    config=types.GenerateContentConfig(
+                        system_instruction=system,
+                        response_mime_type="text/plain",
+                        temperature=0.7, # 텍스트 생성이므로 default보다 약간 낮게
+                    )
+                )
+                
+                if response.usage_metadata:
+                    span.set_attribute("gen_ai.usage.input_tokens", response.usage_metadata.prompt_token_count)
+                    span.set_attribute("gen_ai.usage.output_tokens", response.usage_metadata.candidates_token_count)
+                
+                if response.text:
+                    span.set_attribute("gen_ai.completion", response.text)
+                else:
+                    logger.error("Gemini returned empty response in generate_text")
+                    raise ValueError("Empty response from Gemini")
+    
+                try:
+                    from langfuse import get_client
+                    get_client().flush()
+                except Exception as flush_error:
+                    logger.warning(f"Langfuse flush failed: {flush_error}")
+
+                return response.text
+    
+            except Exception as e:
+                logger.error(f"Gemini API Error (generate_text): {str(e)}")
+                raise e
+
 # Singleton instance
 _gemini_client: Optional[GeminiClient] = None
 

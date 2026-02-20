@@ -1,0 +1,55 @@
+from datetime import date, timedelta
+from typing import List, Dict, Any
+
+from app.db.supabase_client import get_supabase_client
+
+class ReportRepository:
+    def __init__(self):
+        self.client = get_supabase_client()
+
+    async def fetch_past_4_weeks_data(self, user_id: int, base_date: date) -> List[Dict[str, Any]]:
+        """
+        주간 레포트 생성을 위해 base_date 기준 과거 4주간(28일)의 사용자 플래너 기록 데이터를 조회합니다.
+        (planner_records 및 하위 record_tasks 포함, USER_FINAL 타입만 조회 여부 고려)
+        """
+        start_date = base_date - timedelta(days=28)
+        end_date = base_date - timedelta(days=1)
+        
+        try:
+            # planner_records 와 그에 딸린 record_tasks 를 함께 가져옴
+            response = (
+                self.client.table("planner_records")
+                .select("*, record_tasks(*)")
+                .eq("user_id", user_id)
+                .eq("record_type", "USER_FINAL")
+                .gte("plan_date", start_date.isoformat())
+                .lte("plan_date", end_date.isoformat())
+                .execute()
+            )
+            return response.data if response.data else []
+        except Exception as e:
+            import logging
+            logging.error(f"[ReportRepository] Failed to fetch past 4 weeks data for user {user_id}: {e}")
+            return []
+
+    async def upsert_weekly_report(self, report_id: int, user_id: int, base_date: date, content: str) -> bool:
+        """
+        생성된 주간 레포트를 weekly_reports 테이블에 저장(또는 갱신)합니다.
+        """
+        payload = {
+            "report_id": report_id,
+            "user_id": user_id,
+            "base_date": base_date.isoformat(),
+            "content": content
+        }
+        
+        try:
+            # report_id가 Unique Key 이므로 upsert 사용
+            response = self.client.table("weekly_reports").upsert(payload, on_conflict="report_id").execute()
+            if response.data:
+                return True
+            return False
+        except Exception as e:
+            import logging
+            logging.error(f"[ReportRepository] Failed to upsert weekly report {report_id}: {e}")
+            return False

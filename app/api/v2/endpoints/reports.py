@@ -1,11 +1,12 @@
 import time
-from fastapi import APIRouter
+from fastapi import APIRouter, BackgroundTasks
 from app.models.report import WeeklyReportGenerateRequest, WeeklyReportGenerateResponse
+from app.services.report.weekly_report_service import generate_batch_reports
 
 router = APIRouter()
 
 @router.post("/weekly", response_model=WeeklyReportGenerateResponse)
-async def generate_weekly_report(request: WeeklyReportGenerateRequest):
+async def generate_weekly_report(request: WeeklyReportGenerateRequest, background_tasks: BackgroundTasks):
     """
     주간 레포트 생성 (Batch)
     
@@ -14,7 +15,8 @@ async def generate_weekly_report(request: WeeklyReportGenerateRequest):
     """
     start_time = time.time()
     
-    # TODO: Implement actual logic (fetch data -> generate report -> save to DB)
+    # BackgroundTasks를 통해 응답은 즉시 내보내고 레포트 생성은 백그라운드에서 진행
+    background_tasks.add_task(generate_batch_reports, request)
     
     process_time = time.time() - start_time
     
@@ -22,5 +24,5 @@ async def generate_weekly_report(request: WeeklyReportGenerateRequest):
         success=True,
         process_time=process_time,
         count=len(request.users),
-        message=f"Batch report generation started for {len(request.users)} users."
+        message=f"Batch report generation started for {len(request.users)} users in the background."
     )

@@ -52,6 +52,16 @@ python -m unittest tests/test_duration_constraints.py
 python -m pytest tests/test_personalization_ingest_api.py
 ```
 
+### 6. `test_weekly_report.py` (New)
+- **목적**: `POST /ai/v2/reports/weekly` 주간 레포트 생성 파이프라인(배치 처리 및 무한 재시도 로직) 검증
+- **주요 기능**:
+  - `unittest.mock`을 사용하여 DB 조회/저장 및 Gemini API 호출(`gemini-3-flash-preview`, `gemini-2.5-flash`)을 가상(Mock)으로 대체.
+  - 503 에러 발생 시 지정된 횟수만큼 재시도 후 Fallback 모델로 무한 재시도하는 로직이 정상 작동하는지 검증.
+- **실행**:
+```bash
+pytest tests/test_weekly_report.py -v
+```
+
 ---
 
 ## 실행 방법 (전체)
