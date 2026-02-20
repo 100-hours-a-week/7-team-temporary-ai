@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime, timezone
 from typing import List, Dict, Any
 
 from app.db.supabase_client import get_supabase_client
@@ -16,10 +16,10 @@ class ReportRepository:
         end_date = base_date - timedelta(days=1)
         
         try:
-            # planner_records 와 그에 딸린 record_tasks 를 함께 가져옴
+            # planner_records 와 그에 딸린 record_tasks, schedule_histories 를 함께 가져옴
             response = (
                 self.client.table("planner_records")
-                .select("*, record_tasks(*)")
+                .select("*, record_tasks(*), schedule_histories(*)")
                 .eq("user_id", user_id)
                 .eq("record_type", "USER_FINAL")
                 .gte("plan_date", start_date.isoformat())
@@ -40,7 +40,8 @@ class ReportRepository:
             "report_id": report_id,
             "user_id": user_id,
             "base_date": base_date.isoformat(),
-            "content": content
+            "content": content,
+            "updated_at": datetime.now(timezone.utc).isoformat()
         }
         
         try:
