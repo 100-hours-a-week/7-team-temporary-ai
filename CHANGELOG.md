@@ -24,12 +24,18 @@
    - **모델 Fallback 전략**: `gemini-3-flash-preview` 모델을 최우선으로 사용하여 최대 4회 재시도하고, 실패(503 Error 등) 시 `gemini-2.5-flash` 모델로 전환하여 성공할 때까지 지수 백오프(Exponential Backoff)를 적용해 무한 재시도(Infinite Retry)하는 강력한 장애 대응 로직 구현.
    - **Batch 파이프라인**: 다수 유저 리스트(`users`)를 비동기로 받아 순차/병렬적으로 처리하는 파이프라인 구축.
 
-4. **API 엔드포인트 비동기 처리 (`app/api/v2/endpoints/reports.py`)**
-   - **Background Tasks 연동**: 클라이언트 API 호출 시 즉각적인 200 OK(Success)를 반환하고, 무거운 분석 및 LLM 생성 로직은 서버의 백그라운드 태스크로 위임하여 타임아웃 방지 및 응답성 극대화.
+4. **API 엔드포인트 비동기 처리 및 이벤트 루프 블로킹(Blocking) 방어 (`app/api/v2/endpoints/reports.py`, `app/llm/gemini_client.py`, `app/db/repositories/report_repository.py`)**
+   - **Background Tasks 연동**: 클라이언트 API 호출 시 즉각적인 200 OK(Success)를 반환하고, 무거운 분석 및 LLM 생성 로직은 서버의 백그라운드 태스크로 위임.
+   - **비동기 오프로딩(Offloading)**: 백그라운드 태스크 내에서 Supabase DB 조회(`execute()`) 및 Gemini SDK API 호출 과정이 동기(Synchronous) I/O로 동작하여 메인 이벤트 루프를 차단(Blocking)하는 현상(이로 인해 플래너 생성 등 타 API 요청이 대기열에 걸리는 현상)을 발견함.
+   - **해결**: 모든 DB I/O와 LLM 호출을 `await asyncio.to_thread(...)`로 감싸 파이썬 스레드 풀로 오프로딩함으로써, 대용량 Batch 작업 중에도 다른 API 엔드포인트가 지연 없이 완벽히 동시(Concurrent) 처리될 수 있도록 핫픽스 적용.
 
 5. **단위 테스트 작성 (`tests/test_weekly_report.py`)**
    - **Mocking 검증**: 외부 API(Gemini) 호출 비용이나 DB 실제 쓰기 없이 동작을 검증하는 독립적인 클라우드 세이프(Cloud-safe) 테스트 슈트 추가.
    - **시나리오 테스트**: 정상 생성 케이스 및 4회 실패 후 5번째에 Fallback 모델로 성공하는 예외 케이스(무한 재시도 루프)에 대한 검증 코드 작성 완료.
+
+6. **통합 테스트 환경 구축 및 프롬프트 최적화 (`insert_test_data*.py`, `report_prompt.py`)**
+   - **페르소나 기반 데이터 주입**: 컴공 졸업반(`999999`), 쇼핑몰 풀스택 개발자(`888888`), 회계사 고시생(`777777`) 등 3가지 특수한 라이프스타일과 변수 시나리오를 갖춘 28일치 플래너 데이터를 생성하고 DB에 주입하는 스크립트 작성 및 반영 완료.
+   - **프롬프트 입력 데이터 경량화**: LLM 생성 내용의 정확도(환각 방지)를 높이기 위해, 불필요한 메타데이터(가동률, 카테고리, 예상 진행시간 등)와 미배정(`EXCLUDED`) 내역을 제외함. 대신 실제 시작/종료 시간(`start_at`, `end_at`) 및 일정 변경 이력(`schedule_histories`)만 프롬프트 인풋에 노출하도록 쿼리 및 파서 로직 수정 완료.
 
 ---
 ## 2026-02-16

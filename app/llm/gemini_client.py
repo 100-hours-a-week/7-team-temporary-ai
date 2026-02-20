@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from typing import Any, Dict, Optional
@@ -31,20 +32,24 @@ class GeminiClient:
             span.set_attribute("gen_ai.prompt", user)
             
             try:
-                response = self.client.models.generate_content(
-                    model=self.model_name,
-                    contents=[
-                        types.Content(
-                            role="user",
-                            parts=[types.Part.from_text(text=user)]
+                def _do_generate():
+                    return self.client.models.generate_content(
+                        model=self.model_name,
+                        contents=[
+                            types.Content(
+                                role="user",
+                                parts=[types.Part.from_text(text=user)]
+                            )
+                        ],
+                        config=types.GenerateContentConfig(
+                            system_instruction=system,
+                            response_mime_type="application/json",
+                            temperature=0.1,
                         )
-                    ],
-                    config=types.GenerateContentConfig(
-                        system_instruction=system,
-                        response_mime_type="application/json",
-                        temperature=0.1,
                     )
-                )
+                
+                # 메인 이벤트 루프 블로킹 방지를 위한 비동기 처리
+                response = await asyncio.to_thread(_do_generate)
                 
                 # Set Response & Usage Attributes
                 if response.usage_metadata:
@@ -82,20 +87,24 @@ class GeminiClient:
             span.set_attribute("gen_ai.prompt", user)
             
             try:
-                response = self.client.models.generate_content(
-                    model=model_name,
-                    contents=[
-                        types.Content(
-                            role="user",
-                            parts=[types.Part.from_text(text=user)]
+                def _do_generate_text():
+                    return self.client.models.generate_content(
+                        model=model_name,
+                        contents=[
+                            types.Content(
+                                role="user",
+                                parts=[types.Part.from_text(text=user)]
+                            )
+                        ],
+                        config=types.GenerateContentConfig(
+                            system_instruction=system,
+                            response_mime_type="text/plain",
+                            temperature=0.7, # 텍스트 생성이므로 default보다 약간 낮게
                         )
-                    ],
-                    config=types.GenerateContentConfig(
-                        system_instruction=system,
-                        response_mime_type="text/plain",
-                        temperature=0.7, # 텍스트 생성이므로 default보다 약간 낮게
                     )
-                )
+                
+                # 메인 이벤트 루프 블로킹 방지
+                response = await asyncio.to_thread(_do_generate_text)
                 
                 if response.usage_metadata:
                     span.set_attribute("gen_ai.usage.input_tokens", response.usage_metadata.prompt_token_count)

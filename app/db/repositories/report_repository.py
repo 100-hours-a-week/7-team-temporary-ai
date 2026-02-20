@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date, timedelta, datetime, timezone
 from typing import List, Dict, Any
 
@@ -17,15 +18,17 @@ class ReportRepository:
         
         try:
             # planner_records 와 그에 딸린 record_tasks, schedule_histories 를 함께 가져옴
-            response = (
+            query = (
                 self.client.table("planner_records")
                 .select("*, record_tasks(*), schedule_histories(*)")
                 .eq("user_id", user_id)
                 .eq("record_type", "USER_FINAL")
                 .gte("plan_date", start_date.isoformat())
                 .lte("plan_date", end_date.isoformat())
-                .execute()
             )
+            # Sync I/O를 비동기로 위임시켜 메인 이벤트 루프 차단 방지
+            response = await asyncio.to_thread(query.execute)
+            
             return response.data if response.data else []
         except Exception as e:
             import logging
@@ -46,7 +49,10 @@ class ReportRepository:
         
         try:
             # report_id가 Unique Key 이므로 upsert 사용
-            response = self.client.table("weekly_reports").upsert(payload, on_conflict="report_id").execute()
+            query = self.client.table("weekly_reports").upsert(payload, on_conflict="report_id")
+            # Sync I/O를 비동기로 위임시켜 메인 이벤트 루프 차단 방지
+            response = await asyncio.to_thread(query.execute)
+            
             if response.data:
                 return True
             return False
