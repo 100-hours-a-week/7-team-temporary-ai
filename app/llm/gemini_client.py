@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from typing import Any, Dict, Optional
@@ -31,20 +32,24 @@ class GeminiClient:
             span.set_attribute("gen_ai.prompt", user)
             
             try:
-                response = self.client.models.generate_content(
-                    model=self.model_name,
-                    contents=[
-                        types.Content(
-                            role="user",
-                            parts=[types.Part.from_text(text=user)]
+                def _do_generate():
+                    return self.client.models.generate_content(
+                        model=self.model_name,
+                        contents=[
+                            types.Content(
+                                role="user",
+                                parts=[types.Part.from_text(text=user)]
+                            )
+                        ],
+                        config=types.GenerateContentConfig(
+                            system_instruction=system,
+                            response_mime_type="application/json",
+                            temperature=0.1,
                         )
-                    ],
-                    config=types.GenerateContentConfig(
-                        system_instruction=system,
-                        response_mime_type="application/json",
-                        temperature=0.1,
                     )
-                )
+                
+                # 메인 이벤트 루프 블로킹 방지를 위한 비동기 처리
+                response = await asyncio.to_thread(_do_generate)
                 
                 # Set Response & Usage Attributes
                 if response.usage_metadata:
@@ -69,6 +74,58 @@ class GeminiClient:
             except Exception as e:
                 logger.error(f"Gemini API Error: {str(e)}")
                 # Span will automatically capture the exception
+                raise e
+
+    @observe(as_type="generation")
+    async def generate_text(self, system: str, user: str, model_name: str = "gemini-3-flash-preview") -> str:
+        """
+        Gemini API를 호출하여 Markdown 등 단순 텍스트(String) 응답을 반환
+        """
+        with logfire.span(f"Gemini Generation ({model_name})") as span:
+            span.set_attribute("gen_ai.system", system)
+            span.set_attribute("gen_ai.request.model", model_name)
+            span.set_attribute("gen_ai.prompt", user)
+            
+            try:
+                def _do_generate_text():
+                    return self.client.models.generate_content(
+                        model=model_name,
+                        contents=[
+                            types.Content(
+                                role="user",
+                                parts=[types.Part.from_text(text=user)]
+                            )
+                        ],
+                        config=types.GenerateContentConfig(
+                            system_instruction=system,
+                            response_mime_type="text/plain",
+                            temperature=0.7, # 텍스트 생성이므로 default보다 약간 낮게
+                        )
+                    )
+                
+                # 메인 이벤트 루프 블로킹 방지
+                response = await asyncio.to_thread(_do_generate_text)
+                
+                if response.usage_metadata:
+                    span.set_attribute("gen_ai.usage.input_tokens", response.usage_metadata.prompt_token_count)
+                    span.set_attribute("gen_ai.usage.output_tokens", response.usage_metadata.candidates_token_count)
+                
+                if response.text:
+                    span.set_attribute("gen_ai.completion", response.text)
+                else:
+                    logger.error("Gemini returned empty response in generate_text")
+                    raise ValueError("Empty response from Gemini")
+    
+                try:
+                    from langfuse import get_client
+                    get_client().flush()
+                except Exception as flush_error:
+                    logger.warning(f"Langfuse flush failed: {flush_error}")
+
+                return response.text
+    
+            except Exception as e:
+                logger.error(f"Gemini API Error (generate_text): {str(e)}")
                 raise e
 
 # Singleton instance

@@ -4,7 +4,42 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
 
 ---
 
+## 2026-02-20
 
+### 1. weekly_reports 테이블 업데이트 시 updated_at 갱신 누락
+- **현상**: 주간 레포트(`POST /ai/v2/reports/weekly`) 배치 생성 후 동일 `report_id`로 DB에 Upsert 될 때 `content` 데이터는 변경되지만 `updated_at` 시간 표기가 최초 생성 시점에 머물러 있는 버그가 발생.
+- **원인**: 테이블 생성 DDL에 `DEFAULT NOW()`만 설정되어 있어, PostgreSQL/Supabase 특성상 별도의 DB Trigger가 없다면 `UPDATE` 시 엔진 레벨에서 자동으로 타임스탬프를 갱신해주지 않음.
+- **해결**: **Explicit Python Timestamp Binding**.
+  - `app/db/repositories/report_repository.py`의 `upsert_weekly_report` 메서드 로직에서 DB 호출 시 파이썬 단에서 `datetime.now(timezone.utc).isoformat()` 값을 강제로 페이로드(`updated_at`)에 주입해 업데이트 하도록 코드 수정 완료.
+
+### 2. Swagger UI 환경에서 클라이언트 API 다중 요청(중복 실행) 현상
+- **현상**: 서버 로직 상 백그라운드 태스크는 한 번만 큐잉됨에도 불구하고, Swagger에서 Execute 클릭 시 백엔드 로그에 동일한 요청이 연속 2번 찍히고 백그라운드 작업도 두 번 중복 수행되는 버그 리포트.
+- **원인**: FastAPI 라이브러리나 `BackgroundTasks`의 서버 로직 결함이 아님을 검증함. 브라우저 및 Swagger 단의 특성으로 인해 (긴 응답 지연에 따른 브라우저 자동 Retry 또는 CORS Preflight Option 요청 후 본요청 발송 등) UI 측면에서의 중복 발송으로 확인됨. 
+### 3. 백그라운드 작업 중 타 API(Event Loop) 블로킹 현상
+- **현상**: `POST /ai/v2/reports/weekly` (백그라운드 태스크)가 실행되는 동안, 사용자가 `POST /ai/v1/planners` 등 다른 API를 호출하면 앞선 주간 레포트 생성이 완료될 때까지 라우터가 응답하지 않고 무한 대기(대기열 발생)하는 현상.
+- **원인**: FastAPI는 비동기(`asyncio`) 기반으로 동작하여 `await` 단위로 제어권을 넘기며 동시 처리를 수행함. 그러나 백업그라운드 내부 로직(`report_repository.py`의 Supabase `execute()` 및 `gemini_client.py`의 `generate_content()`)이 내부적으로 **동기(Synchronous) HTTP 요청**을 수행하는 라이브러리(Supabase-py, Google GenAI SDK)여서, 해당 I/O 작업이 끝날 때까지 메인 스레드(Event Loop) 전체가 멈춤(Blocking).
+- **해결**: **Asyncio Threadpool Offloading**.
+  - 동기 I/O가 발생하는 모든 DB 조회/저장 쿼리 및 Gemini SDK 호출 구간을 `await asyncio.to_thread(func)`로 감싸서 실행함. 이를 통해 무거운 네트워크 I/O 스레드를 메인 이벤트 루프에서 분리시켜, 대량 레포트 배치 중에도 챗봇이나 플래너 등 다른 비동기 API 요청이 완벽히 동시(Concurrent) 처리되도록 최적화 완료.
+
+## 2026-02-12
+
+### 1. API 파라미터 불일치 (baseTime vs baseDate)
+- **현상**: DB 스키마에는 `base_date`가 `DATE` 타입으로 정의되었으나, 초기 API 명세 및 Pydantic 모델에서는 시분초가 포함된 `ISO 8601` 포맷(`baseTime`)을 사용함.
+- **원인**: 주간 레포트의 분석 기간(월-일)을 정의하는 '날짜' 개념과 API 호출의 '시점' 개념이 설계 과정에서 혼용됨.
+- **해결**: **Schema Synchronization**.
+  - API 필드명을 `baseDate`로 변경하고, 포맷을 `YYYY-MM-DD`로 통일하여 DB 저장 및 조회 시의 형변환 오버헤드를 제거함.
+
+### 2. 주간 레포트 유효성 검사 과제약 (Monday Validation)
+- **현상**: `WeeklyReportGenerateRequest` 모델에서 `baseDate`가 월요일이 아닐 경우 `ValueError`를 발생시켜 요청이 차단됨.
+- **원인**: 주간 레포트는 반드시 월요일을 시작점으로 해야 한다는 비즈니스 규칙을 API 수준에서 강제하려 함.
+- **해결**: **Requirement Relaxation**.
+  - API 레벨에서의 강경한 차단 대신, 백엔드 로직에서 보정하거나 혹은 특정 날짜를 기준으로 과거 4주를 자유롭게 분석할 수 있도록 해당 검증 로직을 제거함.
+
+### 3. Pydantic 모델의 하드코딩된 예시 데이터 관리
+- **현상**: Swagger UI용 예시 데이터가 Python 파일 내부에 길게 작성되어 있어 비즈니스 로직(모델 정의)의 가독성을 해침.
+- **원인**: 초기 빠른 프로토타이핑을 위해 `Field(example=...)` 또는 `model_config`에 직접 데이터를 입력함.
+- **해결**: **External Resource Mapping**.
+  - `tests/data/` 디렉토리에 JSON 파일로 예시 데이터를 분리하고, `json_schema_extra`에서 `load_example()` 헬퍼 함수를 호출하도록 구조화하여 코드와 데이터를 분리함.
 
 ## 2026-02-10
 

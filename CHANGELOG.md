@@ -4,7 +4,116 @@
 
 ---
 
+## 2026-02-21
 
+### 주간 레포트 데이터 조회 (Fetch) API 구현 및 스키마 반영
+
+**목적**: 지정된 배치 타겟(`userId`, `reportId`)에 맞춰 이전에 생성된 다수의 주간 레포트를 한 번에 조회하고 부분 성공/실패 처리를 완벽하게 지원하는 Fetch API의 백엔드 모델과 DB 로직을 완성함.
+
+#### 주요 변경 사항
+
+1. **Pydantic 모델 신설 (`app/models/report.py`)**
+   - **`WeeklyReportFetchRequest`**: 배치 조회를 위한 타겟 인풋 정의(`targets`).
+   - **`WeeklyReportData` & `WeeklyReportFetchResponse`**: 조회 결과 리스트 구조 체계화.
+   - **Swagger Examples**: `tests/data/weekly_report_fetch_request.json` 및 `response.json` 동적 로드 추가.
+
+2. **DB 조회 메서드 구현 (`app/db/repositories/report_repository.py`)**
+   - **`fetch_reports_by_targets`**: 복수의 `report_id`를 대상으로 `weekly_reports` 테이블에서 `select().in_()` 쿼리를 비동기로 실행하여 데이터 패치.
+
+3. **서비스 계층 고도화 (`app/services/report/weekly_report_service.py`)**
+   - **조회 상태 처리**: DB 조회 결과를 바탕으로 각 요청 건에 대하여 `SUCCESS`(비교 일치), `NOT_FOUND`(존재 안함), `FORBIDDEN`(`user_id` 불일치) 상태 판별 로직 적용.
+
+4. **단위 테스트 증명 (`tests/test_weekly_report.py`)**
+   - **에지 케이스 커버리지**: 성공 케이스, 권한 불가, 미존재 등 3가지 개별 시나리오를 동시에 포함한 `test_fetch_weekly_reports` 작성 및 통과 확인 완료.
+
+---
+
+## 2026-02-20
+
+### 주간 레포트 생성 API (POST /ai/v2/reports/weekly) 구현 및 안정성 강화
+
+**목적**: 사용자의 과거 4주간 플래너 데이터를 기반으로 Markdown 형식의 주간 레포트를 생성하고, 대량 사용자 요청(Batch) 및 외부 LLM API(Gemini) 장애에 탄력적으로 대응할 수 있는 견고한 백그라운드 파이프라인을 구축함.
+
+#### 주요 변경 사항
+
+1. **DB Repository 구현 (`app/db/repositories/report_repository.py`)**
+   - **데이터 Fetch**: `baseDate` 기준 과거 4주간의 `planner_records`와 하위 `record_tasks`(`USER_FINAL` 타입)를 Join하여 가져오는 로직 구현.
+   - **결과 Upsert**: AI가 생성한 최종 Markdown 레포트를 `weekly_reports` 테이블에 안전하게 저장(`upsert`)하는 로직 추가.
+
+2. **LLM 처리 로직 고도화 (`app/llm/prompts/report_prompt.py`, `app/llm/gemini_client.py`)**
+   - **데이터 포맷팅**: 4주치 DB 기록을 카테고리, 예상/진행 시간, 가동률 등으로 요약하여 LLM 텍스트 프롬프트 인풋으로 변환하는 전처리(`format_report_data_for_llm`) 함수 작성.
+   - **Gemini Client 고도화**: 단일 JSON 응답뿐만 아니라 Markdown(Text) 생성을 지원하도록 `generate_text` 메서드 추가.
+
+3. **코어 서비스 및 무한 재시도 로직 (`app/services/report/weekly_report_service.py`)**
+   - **모델 Fallback 전략**: `gemini-3-flash-preview` 모델을 최우선으로 사용하여 최대 4회 재시도하고, 실패(503 Error 등) 시 `gemini-2.5-flash` 모델로 전환하여 성공할 때까지 지수 백오프(Exponential Backoff)를 적용해 무한 재시도(Infinite Retry)하는 강력한 장애 대응 로직 구현.
+   - **Batch 파이프라인**: 다수 유저 리스트(`users`)를 비동기로 받아 순차/병렬적으로 처리하는 파이프라인 구축.
+
+4. **API 엔드포인트 비동기 처리 및 이벤트 루프 블로킹(Blocking) 방어 (`app/api/v2/endpoints/reports.py`, `app/llm/gemini_client.py`, `app/db/repositories/report_repository.py`)**
+   - **Background Tasks 연동**: 클라이언트 API 호출 시 즉각적인 200 OK(Success)를 반환하고, 무거운 분석 및 LLM 생성 로직은 서버의 백그라운드 태스크로 위임.
+   - **비동기 오프로딩(Offloading)**: 백그라운드 태스크 내에서 Supabase DB 조회(`execute()`) 및 Gemini SDK API 호출 과정이 동기(Synchronous) I/O로 동작하여 메인 이벤트 루프를 차단(Blocking)하는 현상(이로 인해 플래너 생성 등 타 API 요청이 대기열에 걸리는 현상)을 발견함.
+   - **해결**: 모든 DB I/O와 LLM 호출을 `await asyncio.to_thread(...)`로 감싸 파이썬 스레드 풀로 오프로딩함으로써, 대용량 Batch 작업 중에도 다른 API 엔드포인트가 지연 없이 완벽히 동시(Concurrent) 처리될 수 있도록 핫픽스 적용.
+
+5. **단위 테스트 작성 (`tests/test_weekly_report.py`)**
+   - **Mocking 검증**: 외부 API(Gemini) 호출 비용이나 DB 실제 쓰기 없이 동작을 검증하는 독립적인 클라우드 세이프(Cloud-safe) 테스트 슈트 추가.
+   - **시나리오 테스트**: 정상 생성 케이스 및 4회 실패 후 5번째에 Fallback 모델로 성공하는 예외 케이스(무한 재시도 루프)에 대한 검증 코드 작성 완료.
+
+6. **통합 테스트 환경 구축 및 프롬프트 최적화 (`insert_test_data*.py`, `report_prompt.py`)**
+   - **페르소나 기반 데이터 주입**: 컴공 졸업반(`999999`), 쇼핑몰 풀스택 개발자(`888888`), 회계사 고시생(`777777`) 등 3가지 특수한 라이프스타일과 변수 시나리오를 갖춘 28일치 플래너 데이터를 생성하고 DB에 주입하는 스크립트 작성 및 반영 완료.
+   - **프롬프트 입력 데이터 경량화**: LLM 생성 내용의 정확도(환각 방지)를 높이기 위해, 불필요한 메타데이터(가동률, 카테고리, 예상 진행시간 등)와 미배정(`EXCLUDED`) 내역을 제외함. 대신 실제 시작/종료 시간(`start_at`, `end_at`) 및 일정 변경 이력(`schedule_histories`)만 프롬프트 인풋에 노출하도록 쿼리 및 파서 로직 수정 완료.
+
+---
+## 2026-02-16
+
+### 주간 레포트 조회 API (Weekly Report Fetch API) 추가
+
+**목적**: 백엔드가 생성된 주간 레포트 데이터를 배치(Batch)로 효율적으로 조회할 수 있는 전용 API를 신설하여, 데이터 흐름의 완결성을 확보하고 프론트엔드 연동을 지원함.
+
+#### 주요 변경 사항
+
+1. **API 엔드포인트 신설 (3-2)**
+   - **엔드포인트**: `POST /ai/v2/reports/weekly/fetch`
+   - **기능**: `(userId, reportId)` 목록을 입력받아 가변적인 수의 레포트 데이터를 한 번에 조회.
+   - **부분 성공 지원**: 개별 항목별로 `SUCCESS`, `NOT_FOUND` 등의 상태를 반환하여 유연한 에러 핸들링 가능.
+
+2. **데이터 모델 최적화 (Simplify)**
+   - **필드 통합**: 기존 기획의 `title`, `summary`, `feedback` 등 파편화된 필드를 제거하고, 전체 내용을 담는 단일 **`content` (Markdown Text)** 필드로 통합.
+   - **이유**: LLM 생성 텍스트의 유연성을 높이고, 프론트엔드에서 Markdown 렌더링을 일관되게 처리하기 위함.
+
+3. **API 명세서 품질 향상 (Documentation Quality)**
+   - **구조 개선**: Request/Response 모델 정의와 실제 사용 예시(Example) 섹션을 명확히 분리하여 가독성 강화.
+   - **스키마 명세**: 예시 데이터 JSON에 타입 주석(`// BIGINT`, `// Markdown`)을 추가하여 개발자 이해도 증진.
+   - **에러 시나리오 확충**: `400 Bad Request` 외에도 `401 Unauthorized`, `500 Internal Server Error` 등 다양한 에러 상황에 대한 구체적인 응답 예시 추가.
+
+4. **Status Code 표준화**
+   - **FUNCTION_NAME 추가**: `WEEKLY_REPORT_FETCH`를 API별 Status Code 리스트에 등재.
+   - **상태 코드 정의**: 조회 API 전용 상태 코드(`WEEKLY_REPORT_FETCH_SUCCESS` 등) 체계 수립.
+
+## 2026-02-12
+
+### 주간 레포트 API 명세 고도화 및 백엔드 기반 구축
+
+**목적**: 주간 레포트 분석 범위를 4주로 확대하고, AI 서버가 직접 데이터를 저장하는 효율적인 아키텍처로 전환함. 또한 대량 사용자 처리를 위한 배치 API 구조를 도입함.
+
+#### 주요 변경 사항
+
+1. **주간 레포트 API 명세 업데이트 (v2)**
+   - **분석 범위 확대**: 조회 컨텍스트를 기존 1주에서 **최근 4주**로 확장하여 더 깊은 분석 제공.
+   - **직접 저장 방식 채택**: AI 서버가 생성된 레포트를 직접 Supabase의 `weekly_reports` 테이블에 저장. 백엔드에는 응답값(content) 대신 성공 여부와 `reportId`만 반환하여 네트워크 부하 감소.
+   - **배치 처리 지원 (Batch)**: 단일 유저 처리가 아닌, 한 번의 호출로 여러 명의 사용(`users` 리스트)을 처리할 수 있도록 모델 변경.
+   - **날짜 포맷 표준화**: `baseTime` (ISO 8601)에서 **`baseDate` (YYYY-MM-DD)**로 변경하여 DB `DATE` 타입과 일원화.
+
+2. **DB 스키마 추가 (`docs/DB_SCHEMA_AND_API.md`)**
+   - **`weekly_reports` 테이블**: 레포트 본문(`content`) 및 기준 날짜(`base_date`)를 저장하는 스키마 추가.
+   - **인덱스 최적화**: `report_id` 및 (`user_id`, `base_date`) 복합 인덱스 추가.
+
+3. **백엔드 API Skeleton 구현**
+   - **v2 라우터 도입**: `app/api/v2` 경로를 신설하고 엔드포인트(`POST /ai/v2/reports/weekly`) 구현.
+   - **Pydantic 모델 (`app/models/report.py`)**: 배치 요청 및 응답을 위한 스키마 정의.
+   - **메인 루프 통합**: `app/main.py`에 v2 라우터를 등록하여 서비스 준비 완료.
+
+4. **API 예시 데이터 관리 최적화**
+   - **외부 JSON 관리**: Swagger UI용 예시 데이터를 모델 코드에서 분리하여 `tests/data/`의 JSON 파일로 외주화.
+   - **동적 로딩**: `load_example` 헬퍼를 도입하여 코드를 건드리지 않고 JSON 수정만으로 API 문서를 최신화할 수 있도록 개선.
 
 ## 2026-02-10
 
