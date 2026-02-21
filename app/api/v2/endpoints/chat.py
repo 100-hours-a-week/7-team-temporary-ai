@@ -1,6 +1,6 @@
 import logging
 from fastapi import APIRouter, Path, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, HTMLResponse
 from starlette.status import HTTP_200_OK, HTTP_204_NO_CONTENT
 
 from app.models.chat import ChatRespondRequest, ChatRespondAckResponse
@@ -27,6 +27,23 @@ async def chat_respond(
     POST /ai/v2/reports/{reportId}/chat/respond
     """
     return await chat_service.respond(report_id=reportId, request=request)
+
+
+@router.get(
+    "/reports/{reportId}/chat/test",
+    response_class=HTMLResponse,
+    include_in_schema=False,
+    summary="[테스트용] 챗봇 화면 UI HTML 렌더링",
+)
+async def chat_test_page(reportId: int = Path(...)):
+    """
+    테스트용 챗봇 프론트엔드 제공
+    """
+    import os
+    html_path = os.path.join(os.path.dirname(__file__), "../../../../tests/chat_test.html")
+    with open(html_path, "r", encoding="utf-8") as f:
+        html_content = f.read()
+    return HTMLResponse(content=html_content)
 
 
 @router.get(

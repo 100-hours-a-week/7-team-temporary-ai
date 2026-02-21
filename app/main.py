@@ -19,7 +19,7 @@ import logfire
 # Logfire 설정 (관측성)
 logfire.configure(token=settings.logfire_token, send_to_logfire='if-token-present')
 
-VERSION = "26.02.12 - 주간 레포트 생성 API 엔드포인트 추가"
+VERSION = "26.02.21 - 주간 레포트 생성, 챗봇 기능 추가"
 
 # 로깅 설정
 logging.basicConfig(

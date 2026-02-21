@@ -62,6 +62,27 @@ python -m pytest tests/test_personalization_ingest_api.py
 pytest tests/test_weekly_report.py -v
 ```
 
+### 7. `test_chat_service.py` (New)
+- **목적**: 챗봇 API 스트리밍(SSE) 및 재시도(Fallback) 처리 검증
+- **주요 기능**:
+  - `unittest.mock`과 `asyncio.Queue`를 사용하여 LLM 스트리밍 응답 가상(Mock) 처리.
+  - 503 에러 발생 시 지정된 횟수만큼 재시도 후 Fallback 모델(`gemini-2.5-flash`)로 전환되는 흐름 점검.
+  - `POST` 세션 초기화, `GET` SSE 이벤트 포맷(`start`, `chunk`, `complete`, `error`), `DELETE` 진행 중인 태스크 취소 로직 검증.
+- **실행**:
+```bash
+pytest tests/test_chat_service.py -v
+```
+
+### 8. `chat_test.html` (UI Test)
+- **목적**: 브라우저 환경에서 SSE 스트리밍과 챗봇 응답이 원활히 동작하는지 시각적으로 테스트.
+- **주요 기능**:
+  - `fetch`를 이용하여 `userId: 999999`, `reportId: 9001`의 주간 레포트 데이터를 초기 로드.
+  - 사용자 질문 전송(`POST /respond`) 및 `EventSource`를 통한 실시간 전송(`GET /stream`) 연동.
+  - **Marked.js**를 사용해 LLM 응답을 마크다운으로 렌더링.
+- **실행**:
+1. 백엔드 서버를 구동합니다 (`python -m uvicorn app.main:app --reload`).
+2. 브라우저에서 [http://localhost:8000/ai/v2/reports/9001/chat/test](http://localhost:8000/ai/v2/reports/9001/chat/test) 접속.
+
 ---
 
 ## 실행 방법 (전체)
