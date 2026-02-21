@@ -26,3 +26,17 @@ async def generate_weekly_report(request: WeeklyReportGenerateRequest, backgroun
         count=len(request.users),
         message=f"Batch report generation started for {len(request.users)} users in the background."
     )
+
+
+from app.models.report import WeeklyReportFetchRequest, WeeklyReportFetchResponse
+from app.services.report.weekly_report_service import fetch_weekly_reports
+
+@router.post("/weekly/fetch", response_model=WeeklyReportFetchResponse)
+async def fetch_weekly_report_data(request: WeeklyReportFetchRequest):
+    """
+    주간 레포트 데이터 조회 (배치)
+    
+    - 요청한 (userId, reportId) 리스트에 대해 저장된 레포트 반환
+    - 데이터가 없거나 권한이 맞지 않는 경우 개별 요소로 상태(NOT_FOUND, FORBIDDEN 등) 반환
+    """
+    return await fetch_weekly_reports(request)

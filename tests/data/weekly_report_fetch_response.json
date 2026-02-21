@@ -1,0 +1,23 @@
+{
+    "success": true,
+    "results": [
+        {
+            "reportId": 9001,
+            "userId": 999999,
+            "status": "SUCCESS",
+            "content": "# 주간 레포트 요약\n\n- 이번 주 정말 열심히 하셨네요! 훌륭합니다."
+        },
+        {
+            "reportId": 8001,
+            "userId": 888888,
+            "status": "NOT_FOUND",
+            "content": null
+        },
+        {
+            "reportId": 7001,
+            "userId": 777777,
+            "status": "FORBIDDEN",
+            "content": null
+        }
+    ]
+}

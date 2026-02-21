@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-02-21
+
+### 주간 레포트 데이터 조회 (Fetch) API 구현 및 스키마 반영
+
+**목적**: 지정된 배치 타겟(`userId`, `reportId`)에 맞춰 이전에 생성된 다수의 주간 레포트를 한 번에 조회하고 부분 성공/실패 처리를 완벽하게 지원하는 Fetch API의 백엔드 모델과 DB 로직을 완성함.
+
+#### 주요 변경 사항
+
+1. **Pydantic 모델 신설 (`app/models/report.py`)**
+   - **`WeeklyReportFetchRequest`**: 배치 조회를 위한 타겟 인풋 정의(`targets`).
+   - **`WeeklyReportData` & `WeeklyReportFetchResponse`**: 조회 결과 리스트 구조 체계화.
+   - **Swagger Examples**: `tests/data/weekly_report_fetch_request.json` 및 `response.json` 동적 로드 추가.
+
+2. **DB 조회 메서드 구현 (`app/db/repositories/report_repository.py`)**
+   - **`fetch_reports_by_targets`**: 복수의 `report_id`를 대상으로 `weekly_reports` 테이블에서 `select().in_()` 쿼리를 비동기로 실행하여 데이터 패치.
+
+3. **서비스 계층 고도화 (`app/services/report/weekly_report_service.py`)**
+   - **조회 상태 처리**: DB 조회 결과를 바탕으로 각 요청 건에 대하여 `SUCCESS`(비교 일치), `NOT_FOUND`(존재 안함), `FORBIDDEN`(`user_id` 불일치) 상태 판별 로직 적용.
+
+4. **단위 테스트 증명 (`tests/test_weekly_report.py`)**
+   - **에지 케이스 커버리지**: 성공 케이스, 권한 불가, 미존재 등 3가지 개별 시나리오를 동시에 포함한 `test_fetch_weekly_reports` 작성 및 통과 확인 완료.
+
+---
+
 ## 2026-02-20
 
 ### 주간 레포트 생성 API (POST /ai/v2/reports/weekly) 구현 및 안정성 강화

@@ -1,0 +1,16 @@
+{
+    "targets": [
+        {
+            "userId": 999999,
+            "reportId": 9001
+        },
+        {
+            "userId": 888888,
+            "reportId": 8001
+        },
+        {
+            "userId": 777777,
+            "reportId": 7001
+        }
+    ]
+}

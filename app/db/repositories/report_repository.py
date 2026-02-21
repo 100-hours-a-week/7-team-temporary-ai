@@ -60,3 +60,25 @@ class ReportRepository:
             import logging
             logging.error(f"[ReportRepository] Failed to upsert weekly report {report_id}: {e}")
             return False
+
+    async def fetch_reports_by_targets(self, targets: List[Any]) -> List[Dict[str, Any]]:
+        """
+        주어진 WeeklyReportTarget 리스트의 report_id들을 기반으로 레포트를 조회합니다.
+        """
+        if not targets:
+            return []
+            
+        report_ids = [t.report_id for t in targets]
+        
+        try:
+            query = (
+                self.client.table("weekly_reports")
+                .select("*")
+                .in_("report_id", report_ids)
+            )
+            response = await asyncio.to_thread(query.execute)
+            return response.data if response.data else []
+        except Exception as e:
+            import logging
+            logging.error(f"[ReportRepository] Failed to fetch weekly reports by targets: {e}")
+            return []

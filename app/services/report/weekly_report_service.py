@@ -120,3 +120,51 @@ async def _generate_single_report(user_id: int, report_id: int, base_date: date)
     except Exception as e:
         logger.error(f"[_generate_single_report] Error for user {user_id}: {e}")
         return False
+
+
+async def fetch_weekly_reports(request: "WeeklyReportFetchRequest") -> "WeeklyReportFetchResponse":
+    from app.models.report import WeeklyReportData, WeeklyReportFetchResponse
+    repo = ReportRepository()
+    
+    # DB에서 보고서 데이터 조회
+    raw_reports = await repo.fetch_reports_by_targets(request.targets)
+    
+    # report_id 기준으로 딕셔너리로 변환하여 매핑하기 쉽게 함
+    report_map = {row["report_id"]: row for row in raw_reports}
+    
+    results = []
+    
+    for target in request.targets:
+        report_id = target.report_id
+        user_id = target.user_id
+        
+        if report_id not in report_map:
+            # 보고서가 없는 경우
+            results.append(WeeklyReportData(
+                report_id=report_id,
+                user_id=user_id,
+                status="NOT_FOUND",
+                content=None
+            ))
+        else:
+            db_report = report_map[report_id]
+            # 요청한 user_id와 DB의 user_id가 다른 경우 권한 없음 처리
+            if db_report["user_id"] != user_id:
+                results.append(WeeklyReportData(
+                    report_id=report_id,
+                    user_id=user_id,
+                    status="FORBIDDEN",
+                    content=None
+                ))
+            else:
+                results.append(WeeklyReportData(
+                    report_id=report_id,
+                    user_id=user_id,
+                    status="SUCCESS",
+                    content=db_report.get("content")
+                ))
+                
+    return WeeklyReportFetchResponse(
+        success=True,
+        results=results
+    )

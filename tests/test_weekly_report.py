@@ -90,3 +90,46 @@ async def test_generate_batch_reports_fallback_v2(mock_get_gemini_client, mock_r
         base_date=sample_request.base_date,
         content="# 최종 성공된 마크다운 레포트"
     )
+
+from app.models.report import WeeklyReportFetchRequest, WeeklyReportFetchResponse
+from app.services.report.weekly_report_service import fetch_weekly_reports
+
+@pytest.fixture
+def sample_fetch_request():
+    return WeeklyReportFetchRequest(
+        targets=[
+            WeeklyReportTarget(reportId=1, userId=100),
+            WeeklyReportTarget(reportId=2, userId=200),
+            WeeklyReportTarget(reportId=3, userId=100) # Invalid case: User 100 requesting Report 3 which belongs to 300
+        ]
+    )
+
+@pytest.mark.asyncio
+@patch("app.services.report.weekly_report_service.ReportRepository")
+async def test_fetch_weekly_reports(mock_repo_class, sample_fetch_request):
+    mock_repo = mock_repo_class.return_value
+    # Report 1: Exists, matches user 100
+    # Report 3: Exists, matches user 300
+    # Report 2: Does not exist
+    mock_repo.fetch_reports_by_targets = AsyncMock(return_value=[
+        {"report_id": 1, "user_id": 100, "content": "Report 1 content"},
+        {"report_id": 3, "user_id": 300, "content": "Report 3 content"},
+    ])
+    
+    response = await fetch_weekly_reports(sample_fetch_request)
+    
+    assert response.success is True
+    assert len(response.results) == 3
+    
+    # Validation
+    res_1 = next(r for r in response.results if r.report_id == 1)
+    assert res_1.status == "SUCCESS"
+    assert res_1.content == "Report 1 content"
+    
+    res_2 = next(r for r in response.results if r.report_id == 2)
+    assert res_2.status == "NOT_FOUND"
+    assert res_2.content is None
+    
+    res_3 = next(r for r in response.results if r.report_id == 3)
+    assert res_3.status == "FORBIDDEN"
+    assert res_3.content is None
