@@ -9,6 +9,7 @@ from google.genai import types
 from google.genai.errors import APIError
 
 from app.llm.gemini_client import get_gemini_client
+from app.llm.prompts.chat_prompt import CHAT_SYSTEM_PROMPT
 from app.models.chat import (
     ChatRespondRequest,
     ChatRespondAckResponse,
@@ -112,6 +113,7 @@ class ChatService:
                         contents=gemini_contents,
                         config=types.GenerateContentConfig(
                             temperature=0.7,
+                            system_instruction=CHAT_SYSTEM_PROMPT,
                         )
                     )
                     is_success = True
