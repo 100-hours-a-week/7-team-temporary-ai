@@ -1,0 +1,14 @@
+.git
+.idea
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.env
+
+CHANGELOG.md
+TROUBLESHOOTING.md
+AI_DB_Personalization_Schema.md
