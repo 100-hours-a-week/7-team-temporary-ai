@@ -41,7 +41,7 @@ pip install -r requirements.txt
 ### 3. 테스트 진행
 ```bash
 # 약 3초 소요
-pytest tests/
+python -m pytest tests/
 ```
 
 ### 4. 환경 변수 설정
@@ -95,24 +95,22 @@ MOLIP AI 플래너는 정교한 스케줄링을 위해 다음과 같은 세부 �
 
 ---
 
-## Observability (Logfire)
+## Observability (Logfire & LangSmith)
 
-MOLIP AI 서버는 [Logfire](https://logfire.pydantic.dev)를 통해 전체 API 요청 및 LLM 실행 흐름을 추적합니다.
+MOLIP AI 서버는 복잡한 LLM 파이프라인의 가시성을 위해 **Logfire**와 **LangSmith**를 동시에 활용합니다.
 
-### 🌟 주요 기능
-1. **Web Server Metrics**: API 응답 속도, 에러율 자동 수집 (`logfire.instrument_fastapi`)
-2. **LLM Analytics**: 토큰 사용량(비용), 프롬프트/응답 디버깅 (`logfire.span`)
-3. **Structured Logging**: SQL 질의 가능한 형태의 로그 저장
+### 1. Logfire (Application Tracing)
+- **Role**: API 요청 전체 흐름, Python 함수 실행 시간, 에러 추적.
+- **Integration**: `logfire.instrument_fastapi` 및 `@logfire.instrument`.
+- **Dashboard**: [Logfire Console](https://logfire.pydantic.dev)
 
-## LLM Observability (Langfuse)
-
-복잡한 LLM 파이프라인의 디버깅 및 모니터링을 위해 [Langfuse](https://langfuse.com/)를 사용합니다. (이전 LangSmith 대치)
-
-- **설정**: `.env` 파일에 `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`가 설정되어 있어야 합니다.
-- **용도**: 로컬 및 배포 환경에서 LLM의 입력(Prompt), 출력(Response), Token 사용량(Cost)을 상세하게 추적.
-- **특징**:
-  - `@observe` 데코레이터를 사용하여 함수 단위의 실행 이력을 자동으로 수집합니다.
-  - 짧은 프로세스(테스트 코드 등)에서는 로그 유실 방지를 위해 `flush()`를 명시적으로 호출합니다.
+### 2. LangSmith (LLM Workflow Tracing)
+- **Role**: **LangGraph** 기반의 플래너 생성 로직(Node 1~5)의 상태 전이(State Transition)와 재시도(Retry) 과정을 시각화.
+- **Integration**: `.env`에 `LANGCHAIN_TRACING_V2=true` 설정 시 자동 활성화.
+- **Dashboard**: [LangSmith Console](https://smith.langchain.com)
+- **Key Features**:
+  - **Cycle Visualization**: Loop로 구현된 재시도 로직을 그래프 형태로 직관적으로 확인.
+  - **State Inspection**: 각 노드 사이를 이동하는 `PlannerGraphState` 데이터 변화 추적.
 
 
 ---
@@ -141,7 +139,7 @@ MOLIP-AI/
 │   │       └── node3_prompt.py      # [Prompt] Node 3 (체인 생성)용 프롬프트
 │   ├── models/
 │   │   ├── __init__.py
-│   │   ├── personalization.py        # [Model] 개인화 데이터 수집 요청/응답 모델
+│   │   ├── personalization.py        # [Model] 개인화 데이터 수집 요청/응답 모델 (userIds, targetDate)
 │   │   ├── planner/                 # [Model] AI 플래너 도메인 모델
 │   │   │   ├── request.py           # [Req] API 요청 스키마
 │   │   │   ├── response.py          # [Res] API 응답 스키마
@@ -199,5 +197,39 @@ MOLIP AI는 Supabase(PostgreSQL)와 연동하여 AI가 생성한 플래너 초�
 # DB 저장 재현 스크립트 실행
 python tests_local/reproduce_db_save.py
 ```
+
+
+---
+
+## RunPod 관리 (GPU Server)
+
+MOLIP AI 서버는 고성능 연산이 필요한 경우 RunPod GPU 인스턴스를 활용합니다. `runpod/` 디렉토리에 포함된 스크립트를 통해 인스턴스를 제어할 수 있습니다.
+
+### 사전 설정
+
+1. **패키지 설치**: `pip install -r requirements.txt`
+2. **환경 변수 설정**: `.env` 파일에 `RUNPOD_API_KEY`와 `RUNPOD_POD_ID`를 설정합니다.
+
+### 1. Pod 시작 (Resume)
+
+중지된 Pod을 다시 시작합니다.
+
+> **Note**: RunPod의 유휴 자원 상황에 따라 시작이 실패할 수 있습니다(예: `Error starting pod: There are not enough free GPUs on the host machine to start this pod.`). 이 경우 **성공할 때까지 반복해서 시도**해야 합니다.
+
+```bash
+# 기본 실행 (.env 설정 사용)
+python runpod/start.py
 ```
 
+### 2. Pod 중지 (Stop)
+
+비용 절감을 위해 사용하지 않을 때는 Pod을 중지합니다.
+
+```bash
+# 기본 실행 (.env 설정 사용)
+python runpod/stop.py
+```
+
+### 3. Pod ID 확인
+
+[RunPod Console](https://www.runpod.io/console/pods)의 'My Pods' 섹션에서 Pod ID를 확인할 수 있습니다.

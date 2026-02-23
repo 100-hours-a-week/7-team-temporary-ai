@@ -4,8 +4,94 @@
 
 ---
 
-## 2026-02-03
 
+
+## 2026-02-10
+
+### LangGraph 및 LangSmith 제거 (Dependency Cleanup)
+
+**목적**: 프로젝트의 복잡도를 낮추고 의존성을 경량화하기 위해, `LangGraph` 기반의 오케스트레이션을 제거하고 자체 구현한 파이프라인으로 전환함. 또한 불필요한 `LangSmith` 통합을 제거하여 모니터링 스택을 `Langfuse`로 일원화함.
+
+#### 주요 변경 사항
+
+1. **오케스트레이션 엔진 교체 (Orchestration Replacement)**
+   - **LangGraph 제거**: `app/graphs/planner_graph.py` 삭제 및 `langgraph`, `langchain-core` 라이브러리 제거.
+   - **Custom Pipeline**: `app/api/v1/endpoints/planners.py`에서 노드 함수(Node 1~5)를 순차적으로 호출하는 직관적인 선형 파이프라인(Linear Pipeline)으로 재구현.
+
+2. **노드 리팩토링 (Retry Logic Restoration)**
+   - **Internal Retry 복원**: LangGraph의 `Conditional Edge`에 의존하던 재시도 로직을 각 노드 내부(`node1_structure.py`, `node3_chain_generator.py`)의 `for` 루프 및 `try-except` 블록으로 복원. (구형 코드베이스의 안정적인 로직 차용)
+   - **Node 5 Rollback**: 시간 배정 로직(`node5_time_assignment.py`)을 검증된 구버전 로직으로 원복하여 안정성 확보.
+
+3. **모니터링 정리 (LangSmith Cleanup)**
+   - **LangSmith 제거**: `app/main.py` 및 관련 코드에서 `LangSmith` 초기화 로직 및 주석 제거.
+   - **Langfuse 유지**: `logfire`와 함께 `langfuse`를 메인 모니터링 도구로 유지.
+
+### RunPod 제어 API 통합 (RunPod Control)
+
+**목적**: FastAPI 서버에서 RunPod 인스턴스의 시작(Start)과 중지(Stop)를 직접 제어할 수 있는 엔드포인트를 제공하여, 운영 효율성을 높이고 Swagger UI를 통한 간편한 테스트 환경을 구축함.
+
+#### 주요 변경 사항
+
+1. **[app/api/v1/endpoints/runpod_control.py](app/api/v1/endpoints/runpod_control.py)** (신규)
+   - **Endpoints**: `POST /ai/v1/runpod/start`, `POST /ai/v1/runpod/stop` 구현.
+   - **Integration**: `runpod` Python 라이브러리를 활용하여 실제 Pod 제어.
+   - **Environment**: `.env`의 `RUNPOD_API_KEY` 및 `RUNPOD_POD_ID`를 기본값으로 사용하여 별도 파라미터 입력 없이도 실행 가능.
+
+2. **[app/api/v1/__init__.py](app/api/v1/__init__.py)**
+   - **Router Registration**: `/runpod` 프리픽스로 라우터 등록.
+
+## 2026-02-09
+
+### 버그 수정 (Bug Fixes)
+
+1. **Supabase 데이터 저장 실패 수정 (ImportError)**
+   - **[app/db/repositories/planner_repository.py](app/db/repositories/planner_repository.py)**: `AssignmentStatus`를 `app.models.personalization`에서 import하려다 실패하는 문제 수정 (불필요한 import 제거).
+   - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**: 관련 이슈 및 해결 과정 업데이트.
+
+2. **Parent Schedule ID 저장 누락 수정**
+   - **[app/db/repositories/planner_repository.py](app/db/repositories/planner_repository.py)**: `save_ai_draft` 시 `parent_schedule_id`가 DB에 저장되지 않는 문제 수정. (`planner_records` -> `record_tasks` 저장 로직에 필드 매핑 추가)
+
+
+## 2026-02-08
+
+### 개인화 데이터 DB 적재 가이드 작성 (Personalization DB Guide)
+
+**목적**: 백엔드에서 AI 데이터베이스에 사용자 플래너 데이터(`USER_FINAL`)를 직접 적재하기 위한 명확한 스키마 및 구현 가이드를 제공함.
+
+#### 주요 문서
+- **2026-02-08**: `/ai/v1/personalizations/ingest` API 명세 및 구현 변경 (Simplified Schema: `userIds`, `targetDate`).
+- **2026-02-08**: DB Guide creation (`AI_DB_Personalization_Schema.md`).
+**[AI_DB_Personalization_Schema.md](AI_DB_Personalization_Schema.md)** (신규)
+   - **Step-by-Step 가이드**: `planner_records` -> `record_tasks` -> `schedule_histories` 순서의 적재 프로세스 상세화.
+   - **ID 매핑 전략**: `RETURNING id` 패턴을 사용하여 상위 테이블의 Auto-Increment PK를 하위 테이블의 FK로 전달하는 로직 명시.
+   - **데이터 구분**: 백엔드는 오직 `USER_FINAL` 타입만 적재하며, AI가 생성한 `AI_DRAFT`는 저장하지 않음을 명확히 규정.
+
+## 2026-02-05
+
+### LangGraph 도입 및 플래너 구조 리팩토링
+
+**목적**: 기존의 순차적(Logic-based) 실행 흐름을 **Stateful Graph** 기반으로 전환하여, 복잡한 재시도(Retry) 로직을 그래프의 순환(Cycle) 구조로 시각화하고 LangSmith를 통한 모니터링 효율을 극대화함.
+
+#### 주요 변경 사항
+
+1. **[app/graphs/planner_graph.py](app/graphs/planner_graph.py)** (신규)
+   - **LangGraph Definition**: `Start` -> `Node 1` -> `Node 2` -> `Node 3` -> `Node 4` -> `Node 5` -> `End`의 흐름을 정의.
+   - **Cyclic Retry**: Node 1(구조 분석)과 Node 3(체인 생성) 실패 시, 내부 `for` 루프 대신 **Conditional Edge**를 통해 노드를 재방문하도록 구현 (LangSmith에서 Retry 횟수 시각적 확인 가능).
+
+2. **노드 리팩토링 (Retry Loop 제거)**
+   - **[app/services/planner/nodes/node1_structure.py](app/services/planner/nodes/node1_structure.py)**: 내부 `max_retries` 루프를 제거하고, 1회 실행 후 성공/실패 상태를 반환하도록 간소화.
+   - **[app/services/planner/nodes/node3_chain_generator.py](app/services/planner/nodes/node3_chain_generator.py)**: 동일하게 내부 루프 제거 및 Fallback 로직 분리(`node3_fallback`).
+
+3. **[app/api/v1/endpoints/planners.py](app/api/v1/endpoints/planners.py)**
+   - **Execution Engine 교체**: 기존 함수 순차 호출 방식을 `planner_graph.ainvoke(state)`로 변경.
+
+4. **[requirements.txt](requirements.txt)**
+   - **Dependency**: `langgraph`, `langchain-core` 추가.
+
+5. **[tests/test_graph.py](tests/test_graph.py)** (신규)
+   - **Integration Test**: LangGraph 파이프라인 전체를 Mocking 된 LLM과 함께 실행하여 상태 전이(State Transition) 및 최종 결과 검증.
+
+## 2026-02-03
 ### 버그 수정 (Bug Fixes)
 
 1. **CORS_ORIGINS 환경변수 파싱 오류 수정**
