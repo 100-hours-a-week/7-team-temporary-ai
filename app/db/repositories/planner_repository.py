@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import List, Optional
 
 from app.db.supabase_client import get_supabase_client
 from app.models.planner.internal import PlannerGraphState, TaskFeature
@@ -41,7 +40,7 @@ class PlannerRepository:
                 "day_end_time": state.request.user.dayEndTime,
                 "focus_time_zone": state.request.user.focusTimeZone,
                 "user_age": None,    # AI Draft creation doesn't necessarily know or store demographics here
-                "user_gender": None, 
+                "user_gender": None,
                 "total_tasks": len(flex_tasks),
                 "assigned_count": assigned_real_count,
                 "excluded_count": excluded_count,
@@ -96,7 +95,7 @@ class PlannerRepository:
                     "day_plan_id": original_task.dayPlanId,
                     "parent_schedule_id": original_task.parentScheduleId,
                     "title": original_task.title,
-                    "status": "TODO", 
+                    "status": "TODO",
                     "task_type": "FLEX",
                     "assigned_by": assigned_by,
                     "assignment_status": assignment_status,
@@ -122,7 +121,7 @@ class PlannerRepository:
                     "duration_max_chunk": feature.durationMaxChunk,
                     
                     "children": children_data, # Keep JSON for reference/debugging
-                    "is_split": is_split, 
+                    "is_split": is_split,
                     
                     "created_at": datetime.now().isoformat()
                 }
@@ -145,7 +144,7 @@ class PlannerRepository:
                          task_rows.append(child_row)
                 
             # 3.2 FIXED Tasks
-            # Fixed tasks are not in taskFeatures (Node 1 only analyzes FLEX), 
+            # Fixed tasks are not in taskFeatures (Node 1 only analyzes FLEX) 
             # so we create rows with minimal AI info.
             for ft in state.fixedTasks:
                  row = {

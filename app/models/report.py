@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import List, Optional
 import json
 from pathlib import Path
 
@@ -41,7 +40,7 @@ class WeeklyReportGenerateRequest(BaseModel):
     )
 
     base_date: date = Field(..., alias="baseDate", description="기준 날짜(Monday, YYYY-MM-DD)")
-    users: List[WeeklyReportTarget] = Field(..., description="생성 대상 목록", min_length=1)
+    users: list[WeeklyReportTarget] = Field(..., description="생성 대상 목록", min_length=1)
 
 
 class WeeklyReportGenerateResponse(BaseModel):
@@ -74,7 +73,7 @@ class WeeklyReportFetchRequest(BaseModel):
         }
     )
 
-    targets: List[WeeklyReportTarget] = Field(..., description="조회 대상 목록 (userId, reportId 쌍)", min_length=1)
+    targets: list[WeeklyReportTarget] = Field(..., description="조회 대상 목록 (userId, reportId 쌍)", min_length=1)
 
 
 class WeeklyReportData(BaseModel):
@@ -92,7 +91,7 @@ class WeeklyReportData(BaseModel):
     status: str = Field(..., description="조회 상태 (SUCCESS/NOT_FOUND/FORBIDDEN)")
     
     # 레포트 내용 (성공 시에만 존재)
-    content: Optional[str] = Field(None, description="레포트 본문(TEXT)")
+    content: str | None = Field(None, description="레포트 본문(TEXT)")
 
 
 class WeeklyReportFetchResponse(BaseModel):
@@ -107,4 +106,4 @@ class WeeklyReportFetchResponse(BaseModel):
     )
 
     success: bool = Field(..., description="요청 자체의 성공 여부")
-    results: List[WeeklyReportData] = Field(..., description="개별 레포트 조회 결과 리스트")
+    results: list[WeeklyReportData] = Field(..., description="개별 레포트 조회 결과 리스트")

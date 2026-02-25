@@ -1,7 +1,7 @@
-from typing import List, Set
+from typing import AsyncGenerator, Annotated, Set
 from app.models.planner.request import ScheduleItem
 
-def filter_parent_tasks(schedules: List[ScheduleItem]) -> List[ScheduleItem]:
+def filter_parent_tasks(schedules: list[ScheduleItem]) -> list[ScheduleItem]:
     """
     Filter out parent tasks (tasks that are referenced as parentScheduleId by other tasks)
     from the list of schedules. Only returns FLEX tasks that are NOT parents.

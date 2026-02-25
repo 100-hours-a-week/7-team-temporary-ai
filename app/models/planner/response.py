@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Literal
+from typing import AsyncGenerator, Annotated, Literal
 
 AssignmentStatus = Literal["ASSIGNED", "EXCLUDED"]
 AssignedBy = Literal["AI", "USER"]
@@ -17,9 +17,9 @@ class AssignmentResult(BaseModel):
     type: str = Field(..., description="'FIXED' | 'FLEX'")
     assignedBy: AssignedBy = "AI"
     assignmentStatus: str = Field(..., description="'ASSIGNED' | 'EXCLUDED' | 'NOT_ASSIGNED'")
-    startAt: Optional[str] = None
-    endAt: Optional[str] = None
-    children: Optional[List[SubTaskResult]] = None
+    startAt: str | None = None
+    endAt: str | None = None
+    children: list[SubTaskResult] | None = None
 
 class PlannerErrorDetail(BaseModel):
     field: str
@@ -28,8 +28,8 @@ class PlannerErrorDetail(BaseModel):
 class PlannerResponse(BaseModel):
     success: bool
     processTime: float
-    results: Optional[List[AssignmentResult]] = None
+    results: list[AssignmentResult] | None = None
     message: str = "Planner generated successfully"
-    errorCode: Optional[str] = None
-    details: Optional[List[PlannerErrorDetail]] = None
-    traceId: Optional[str] = None
+    errorCode: str | None = None
+    details: list[PlannerErrorDetail] | None = None
+    traceId: str | None = None

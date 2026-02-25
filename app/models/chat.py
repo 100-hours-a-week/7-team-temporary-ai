@@ -1,7 +1,7 @@
 from __future__ import annotations
+from typing import AsyncGenerator, Annotated
 
 from enum import Enum
-from typing import Annotated, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -85,7 +85,7 @@ class ChatRespondRequest(BaseModel):
     [요청] POST /ai/v2/reports/{reportId}/chat/respond
     """
     model_config = ConfigDict(
-        populate_by_name=True, 
+        populate_by_name=True,
         extra="forbid",
         json_schema_extra={
             "example": {
@@ -111,7 +111,7 @@ class ChatRespondRequest(BaseModel):
 
     user_id: BigInt64 = Field(..., alias="userId", description="사용자 ID(BIGINT)")
     message_id: BigInt64 = Field(..., alias="messageId", description="AI 응답 메시지 ID(= stream 구독 키)")
-    messages: List[ChatHistoryMessage] = Field(
+    messages: list[ChatHistoryMessage] = Field(
         ...,
         min_length=1,
         max_length=50,
@@ -191,7 +191,7 @@ class ChatStreamCompleteEvent(BaseModel):
 
     status: StreamStatus = Field(StreamStatus.COMPLETED, description="COMPLETED (또는 CANCELED)")
 
-    content: Optional[str] = Field(None, description="최종 MARKDOWN 본문(선택)")
+    content: str | None = Field(None, description="최종 MARKDOWN 본문(선택)")
 
 
 class ChatStreamErrorEvent(BaseModel):
@@ -213,4 +213,4 @@ class ErrorResponse(BaseModel):
 
     status: str = Field(..., description="에러 상태 코드 문자열", examples=["UNAUTHORIZED"])
     message: str = Field(..., description="에러 메시지")
-    data: Optional[dict] = Field(None, description="추가 정보(없으면 null)")
+    data: dict | None = Field(None, description="추가 정보(없으면 null)")

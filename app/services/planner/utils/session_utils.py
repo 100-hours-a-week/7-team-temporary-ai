@@ -1,4 +1,3 @@
-from typing import List, Dict
 from app.models.planner.internal import FreeSession
 from app.models.planner.request import ScheduleItem, TimeZone
 from app.services.planner.utils.time_utils import hhmm_to_minutes, get_timezone
@@ -15,8 +14,8 @@ TIME_ZONES = [
 def calculate_free_sessions(
     start_arrange_str: str,
     day_end_time_str: str,
-    fixed_schedules: List[ScheduleItem]
-) -> List[FreeSession]:
+    fixed_schedules: list[ScheduleItem]
+) -> list[FreeSession]:
     start_min = hhmm_to_minutes(start_arrange_str)
     end_min = hhmm_to_minutes(day_end_time_str)
     
@@ -64,7 +63,7 @@ def calculate_free_sessions(
 
 def _create_session(start: int, end: int) -> FreeSession:
     duration = end - start
-    profile: Dict[TimeZone, int] = {}
+    profile: dict[TimeZone, int] = {}
     
     # Naive iteration is fast enough for day-scale (max 1440 iters)
     # and safer for complex edge cases
@@ -87,7 +86,7 @@ def _create_session(start: int, end: int) -> FreeSession:
         timeZoneProfile=profile
     )
 
-def calculate_capacity(free_sessions: List[FreeSession]) -> Dict[str, int]:
+def calculate_capacity(free_sessions: list[FreeSession]) -> dict[str, int]:
     """
     FreeSession 리스트를 순회하며 각 시간대(TimeZone)별 총 가용 시간(분)을 합산합니다.
     """

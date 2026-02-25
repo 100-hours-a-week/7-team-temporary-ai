@@ -22,7 +22,7 @@ rm -rf venv
 
 ```bash
 # 가상환경 생성
-python3 -m venv venv
+python3.11 -m venv venv
 
 # 가상환경 활성화 (macOS/Linux)
 source venv/bin/activate
