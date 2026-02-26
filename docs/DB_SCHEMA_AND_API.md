@@ -62,6 +62,57 @@ erDiagram
 CREATE EXTENSION IF NOT EXISTS vector;
 
 -- ============================================
+-- 0) RPC Functions: 임베딩 검색 (MCP Tool 연동)
+-- ============================================
+-- 용도: 챗봇 MCP에서 의미적 유사도(Semantic Search) 기반 과거 태스크 검색을 위한 DB 내장 함수
+CREATE OR REPLACE FUNCTION match_record_tasks (
+  p_user_id bigint,
+  query_embedding vector(768),
+  match_count int
+)
+RETURNS TABLE (
+  id bigint,
+  record_id bigint,
+  title varchar,
+  status varchar,
+  focus_level int,
+  is_urgent boolean,
+  category varchar,
+  start_at varchar,
+  end_at varchar,
+  plan_date date,
+  focus_time_zone varchar,
+  similarity float
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    rt.id,
+    rt.record_id,
+    rt.title,
+    rt.status,
+    rt.focus_level,
+    rt.is_urgent,
+    rt.category,
+    rt.start_at,
+    rt.end_at,
+    pr.plan_date,
+    pr.focus_time_zone,
+    1 - (rt.combined_embedding_text::vector <=> query_embedding) AS similarity
+  FROM record_tasks rt
+  JOIN planner_records pr ON pr.id = rt.record_id
+  WHERE pr.user_id = p_user_id
+    AND pr.record_type = 'USER_FINAL'
+    AND rt.assignment_status = 'ASSIGNED'
+    AND rt.combined_embedding_text IS NOT NULL
+  ORDER BY rt.combined_embedding_text::vector <=> query_embedding
+  LIMIT match_count;
+END;
+$$;
+
+-- ============================================
 -- 1) user_weights: 개인화 가중치
 -- ============================================
 -- 용도: 사용자별 WeightParams 저장, 주간 학습으로 업데이트

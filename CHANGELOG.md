@@ -6,6 +6,32 @@
 
 ## 2026-02-26
 
+### 의미 체계 기반(Semantic) 스케줄 검색 MCP 도구 및 테스트 클라이언트 구현
+
+**목적**: 사용자가 자연어로 과거 일정(플래너)을 물어봤을 때, 텍스트가 정확히 일치하지 않아도 의미적(행위적)으로 가장 유사한 스케줄을 데이터베이스에서 빠르고 똑똑하게 찾아오는 고도화된 RAG 검색 도구를 구현함.
+
+#### 주요 변경 사항
+
+1. **DB 유사도 검색 RPC 구현 (`docs/DB_SCHEMA_AND_API.md`)**
+   - **`match_record_tasks` Stored Procedure**: Supabase(PostgreSQL) 내부에 `pgvector` 확장을 활용한 코사인 유사도 연산 함수 작성.
+   - 클라이언트에서 768차원 텍스트 임베딩 벡터와 `match_count`(기본 5개)를 전달받아, `record_tasks` 테이블과 `planner_records` 테이블을 JOIN하여 `user_id`와 `record_type='USER_FINAL'` 조건에 맞는 유사 일정 추출 후 반환.
+
+2. **Semantic Search MCP 도구 연동 (`app/mcp/server.py`)**
+   - **`search_tasks_by_similarity`**: 기존 날짜 검색 도구에 이어 두 번째 FastMCP 툴을 서버에 등록.
+   - Pydantic 스키마 및 마크다운 포맷터를 활용하여, DB(RPC)에서 받아온 결과를 LLM이 가장 직관적으로 읽고 이해할 수 있는 형태(`### 1. ⏳ 재무관리 기출문제...`)로 가공.
+   - **Observability**: 검색 시 `logfire.instrument`를 통해 소요 시간 및 에러율 감시 체계 연동.
+
+3. **로컬 연동 테스트 클라이언트 고도화 (`tests_local/mcp_semantic_test_client.py`)**
+   - **Gemini 임베딩 연동**: `gemini-embedding-001` 모델과 `output_dimensionality=768` 옵션을 적용하여, 사용자의 한국어 질문 문자열을 정확한 768차원 Float 배열로 변환하도록 구현.
+   - **ToolConfig 강제 호출**: LLM이 일반 답변을 생성하기 전에 무조건 `search_tasks_by_similarity` 도구를 먼저 호출하여 검색 결과를 참고하도록 제어(`types.FunctionCallingConfigMode.ANY` 정책 사용).
+   - "운동과 관련된 계획" 또는 "모의고사 관련 일정" 등의 자연어 프롬프트를 정확히 인식하여 DB의 상위 5개 내역을 잘 가져오는지 End-to-End 검증 완료.
+
+4. **단위 테스트(Unit Test) 작성 (`tests/test_mcp_server.py`)**
+   - **Mocking Strategy**: Supabase Client의 `rpc()` 호출을 MagicMock으로 대체하여 외부 종속성을 끊은 독립적인 테스트 환경 구축.
+   - 정상 검색, 데이터 없음, DB 통신 에러 등 3가지 주요 예외 케이스에 대한 엣지 검증 로직 수립.
+
+---
+
 ### 플래너 태스크 임베딩 동기화 스케줄러 구현
 
 **목적**: MCP(Model Context Protocol) 또는 검색 백엔드에서 유사도 검색(Semantic Search)을 수행할 수 있도록, 데이터베이스(`record_tasks`)에 누락된 임베딩 벡터(`combined_embedding_text`) 데이터를 정기적으로 채워넣는 백그라운드 파이프라인을 구축함.
