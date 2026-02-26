@@ -10,8 +10,8 @@ AI 챗봇은 사용자의 질문 의도에 따라 알맞은 MCP Tool을 호출�
 
 **[주요 활용 테이블]**
 *   **날짜/이력 검색용**: 
-    *   `planner_records` (플래너 배치 날짜/통계 판별: `plan_date`, `start_arrange`, `day_end_time`)
-    *   `record_tasks` (세부 작업 내용 및 배치 결과 확인: `created_date`, `title`, `category`, `assignment_status`)
+    *   `planner_records` (플래너 배치 날짜/통계 판별: `planner_date`, `start_arrange`, `day_end_time`)
+    *   `record_tasks` (세부 작업 내용 및 배치 결과 확인: `title`, `category`, `assignment_status`)
     *   `schedule_histories` (사용자 행동 이력 조회: `created_date`, `event_type`)
     *   `weekly_reports` (주간 단위 통합 컨텍스트 조회: `base_date`, `content`)
 *   **벡터/의미 검색용**: 
@@ -40,7 +40,7 @@ AI 챗봇은 사용자의 질문 의도에 따라 알맞은 MCP Tool을 호출�
 
 *   **실행 로직 (접근 방식)**
     1.  `planner_records` 테이블에서 조건 부합 레코드 탐색:
-        *   `plan_date`가 `start_date`와 `end_date` 사이에 존재 여부
+        *   `planner_date`가 `start_date`와 `end_date` 사이에 존재 여부
         *   `record_type` 이 `USER_FINAL` 인 경우만 대상
         *   이 과정에서 해당하는 각각의 `id`, `start_arrange`, `day_end_time`, `focus_time_zone`를 추출.
     2.  `record_tasks` 테이블에서 상세 태스크 병합:
@@ -74,7 +74,7 @@ HNSW 인덱스가 걸려있는 `task_embeddings` 테이블의 `embedding` (768�
     *   `user_id` (Integer): 사용자 식별자 (필수, 타인 데이터 침범 방지).
     *   `query` (String): 사용자가 검색하고자 하는 자연어 문장.
     *   `top_k` (Integer): 반환할 레코드 개수 (기본값: 5).
-    *   `date_limit` (String, Optional): 특정 날짜 이후의 데이터만 찾고자 할 때 (`created_date` 기준).
+    *   `date_limit` (String, Optional): 특정 날짜 이후의 데이터만 찾고자 할 때 (`planner_records.planner_date` 기준).
 
 *   **실행 로직**
     1.  **임베딩 생성**: 입력받은 `query` 문자열을 Gemini `text-embedding-004` (또는 동일한 768차원 모델) 서버 API에 전송하여 768차원의 float 배열(`query_vector`)을 얻어옵니다.
@@ -83,14 +83,27 @@ HNSW 인덱스가 걸려있는 `task_embeddings` 테이블의 `embedding` (768�
         SELECT 
             te.content,
             te.category,
-            te.created_date,
+            pr.planner_date,
             1 - (te.embedding <=> $2::vector) AS similarity_score
         FROM task_embeddings te
+        JOIN record_tasks rt ON te.record_task_id = rt.id
+        JOIN planner_records pr ON rt.record_id = pr.id
         WHERE te.user_id = $1
-          -- 필요 시 date_limit 적용: AND te.created_date >= $4::date
+          -- 필요 시 date_limit 적용: AND pr.planner_date >= $4::date
         ORDER BY te.embedding <=> $2::vector -- 코사인 거리 기준 오름차순 (가장 유사한 것부터)
         LIMIT $3;
         ```
+
+*   **출력 메타데이터 변환 및 LLM 프롬프팅 전략 (Output Schema)**
+    유사도 검색의 결과는 LLM이 문맥을 이해하기 쉽도록 Markdown 형식의 목록으로 만들어 반환하는 것이 좋습니다.
+    (예: `server.py`의 `search_tasks_by_similarity` 함수 구현 참고)
+    *   **메타데이터 가이드 제공:** 결과 최상단에 `status(TODO/DONE)`, `focus_level(1~10 난이도)`, `is_urgent(긴급도)`, `focus_time_zone(집중 시간대)`의 의미를 함께 제공합니다.
+    *   **검색된 데이터 항목:**
+        *   `title` (작업 명칭)
+        *   `similarity` (유사도 점수 - 예: 0.713)
+        *   `planner_date` 및 `focus_time_zone` (해당 일이 포함된 플래너의 기준 날짜와 몰입 시간대)
+        *   `start_at` ~ `end_at` (작업 진행 시간)
+        *   `status`, `is_urgent`, `focus_level`, `category` (태스크의 메타 정보)
 
 *   **고려 사항**
     *   벡터 유사도 검색 시 **사용자 격리(`user_id = ?`)가 1순위**로 이루어져야 합니다. 그 후 인덱스를 탈 수 있도록 쿼리 플랜을 확인해야 합니다.

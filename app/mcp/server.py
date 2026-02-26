@@ -43,11 +43,11 @@ async def search_schedules_by_date(
     try:
         # 1. planner_records 조회 (record_type이 'USER_FINAL'인 것만, 지정된 날짜 범위 내)
         response = client.table("planner_records") \
-            .select("id, start_arrange, day_end_time, focus_time_zone, plan_date") \
+            .select("id, start_arrange, day_end_time, focus_time_zone, planner_date") \
             .eq("user_id", user_id) \
             .eq("record_type", "USER_FINAL") \
-            .gte("plan_date", start_date) \
-            .lte("plan_date", end_date) \
+            .gte("planner_date", start_date) \
+            .lte("planner_date", end_date) \
             .execute()
             
         planner_data = response.data
@@ -74,7 +74,7 @@ async def search_schedules_by_date(
         result_md += "> - **focus_time_zone**: 사용자의 의도된 집중 시간대\n\n"
         
         for record in planner_data:
-            result_md += f"### 🗓️ {record['plan_date']} (기상: {record['start_arrange']}, 취침: {record['day_end_time']}, 집중시간대: {record['focus_time_zone']})\n"
+            result_md += f"### 🗓️ {record['planner_date']} (기상: {record['start_arrange']}, 취침: {record['day_end_time']}, 집중시간대: {record['focus_time_zone']})\n"
             
             # 현재 레코드에 속한 작업들 필터링
             matched_tasks = [t for t in tasks_data if t["record_id"] == record["id"]]
@@ -149,7 +149,7 @@ async def search_tasks_by_similarity(
         
         for idx, task in enumerate(tasks_data, 1):
             score = task.get("similarity", 0.0)
-            plan_date = task.get("plan_date", "알수없음")
+            plan_date = task.get("planner_date", "알수없음")
             time_zone = task.get("focus_time_zone", "N/A")
             
             status_emoji = "✅" if task.get("status") == "DONE" else "⏳"

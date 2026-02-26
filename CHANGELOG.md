@@ -32,6 +32,23 @@
 
 ---
 
+### 데일리 플래너 날짜 관리 개선 (`planner_date` 추가)
+
+**목적**: AI_DRAFT(임시 저장)와 USER_FINAL(일괄 적재)의 실제 기록된 시간대가 달라져서 발생하는 "데일리 플래너의 날짜 부정합" 문제를 해결하기 위해, 최초 플래너 생성일자를 자동으로 상속받는 전용 필드를 도입함.
+
+#### 주요 변경 사항
+
+1. **DB 스키마 및 마이그레이션 (`docs/DB_SCHEMA_AND_API.md`)**
+   - **`planner_date` 신설**: `planner_records` 테이블에 최초 플래너 기동 일자를 담는 날짜 컬럼 추가.
+   - **트리거(`trg_set_planner_date`) 적용**: 데이터베이스 Insert 시 동일한 `day_plan_id`가 존재한다면 과거의 최초 `planner_date`를 무조건 상속받도록 DB 수준에서 보장 (백엔드 코드 수정 불필요).
+   - **기존 데이터 마이그레이션**: 앞서 기록된 모든 데이터들의 `UPDATE` 문을 통한 일괄 동기화 완료.
+
+2. **MCP 서버 조회 조건 변경 (`app/mcp/server.py`)**
+   - **`search_schedules_by_date`**: 날짜 필터링(`start_date`, `end_date`) 및 결과 출력 기준을 `plan_date`에서 `planner_date`로 변경.
+   - **`search_tasks_by_similarity` (RPC 함수 포함)**: `match_record_tasks` 내부 조건 및 반환값, LLM 포맷팅 변수를 모두 `planner_date`로 변경하여 모델이 정확한 기동 일자를 반영해 답변할 수 있도록 개선.
+
+---
+
 ### 플래너 태스크 임베딩 동기화 스케줄러 구현
 
 **목적**: MCP(Model Context Protocol) 또는 검색 백엔드에서 유사도 검색(Semantic Search)을 수행할 수 있도록, 데이터베이스(`record_tasks`)에 누락된 임베딩 벡터(`combined_embedding_text`) 데이터를 정기적으로 채워넣는 백그라운드 파이프라인을 구축함.
