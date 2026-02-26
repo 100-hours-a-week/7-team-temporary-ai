@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import AsyncGenerator, Dict, Any
+from typing import AsyncGenerator, Annotated, Any
 
 from fastapi import HTTPException
 from google.genai import types
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 # 장기 연결 세션 및 큐 관리
 # Key: message_id, Value: dict("queue": asyncio.Queue, "task": asyncio.Task)
-_active_sessions: Dict[int, Dict[str, Any]] = {}
+_active_sessions: dict[int, dict[str, Any]] = {}
 
 class ChatService:
     def __init__(self):

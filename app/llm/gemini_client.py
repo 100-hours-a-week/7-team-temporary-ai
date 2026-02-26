@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import AsyncGenerator, Annotated, Any, Dict, Optional
 from google import genai
 from google.genai import types
 import logfire
@@ -21,7 +21,7 @@ class GeminiClient:
         self.model_name = "gemini-2.5-flash-lite"
         
     @observe(as_type="generation")
-    async def generate(self, system: str, user: str) -> Dict[str, Any]:
+    async def generate(self, system: str, user: str) -> dict[str, Any]:
         """
         Gemini API를 호출하여 JSON 응답을 반환
         """

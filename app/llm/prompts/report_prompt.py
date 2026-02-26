@@ -1,6 +1,6 @@
 import json
 from datetime import date
-from typing import List, Dict, Any
+from typing import AsyncGenerator, Annotated, Any
 
 WEEKLY_REPORT_SYSTEM_PROMPT = """You are a professional and empathetic personal AI assistant.
 Your task is to analyze the user's past 4 weeks of planner data and generate a comprehensive 'Weekly Report' in Markdown format.
@@ -23,7 +23,7 @@ Requirements:
 - Do NOT output any JSON wrapper. Just the raw Markdown string.
 """
 
-def format_report_data_for_llm(base_date: date, raw_data: List[Dict[str, Any]]) -> str:
+def format_report_data_for_llm(base_date: date, raw_data: list[dict[str, Any]]) -> str:
     """
     Supabase에서 조회한 planner_records, record_tasks, schedule_histories 데이터를
     LLM이 이해하기 쉬운 형태의 텍스트로 변환합니다.

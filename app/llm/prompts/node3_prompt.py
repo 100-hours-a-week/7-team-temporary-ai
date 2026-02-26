@@ -1,6 +1,6 @@
 import json
 import logfire  # [Logfire] Import
-from typing import List, Dict, Any
+from typing import AsyncGenerator, Annotated, Any
 from app.models.planner.internal import TaskFeature
 
 NODE3_SYSTEM_PROMPT = """
@@ -66,9 +66,9 @@ NODE3_SYSTEM_PROMPT = """
 """
 
 def format_node3_input(
-    task_features: Dict[int, TaskFeature],
-    fixed_schedules: List[Dict[str, Any]],
-    capacity: Dict[str, int],
+    task_features: dict[int, TaskFeature],
+    fixed_schedules: list[dict[str, Any]],
+    capacity: dict[str, int],
     focus_timezone: str
 ) -> str:
     """

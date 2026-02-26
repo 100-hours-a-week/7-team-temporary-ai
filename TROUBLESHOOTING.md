@@ -4,6 +4,24 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
 
 ---
 
+## 2026-02-25
+
+### 1. MCP 라이브러리 사용을 위한 Python 버전 호환성 이슈
+- **현상**: MCP SDK 설치 시 `Python >= 3.10` 요구 조건으로 인해 기존 3.9 환경에서 설치 실패.
+- **원인**: 최신 MCP 패키지가 파이썬의 최신 비동기 및 타입 시스템 기능을 요구함.
+- **해결**: **Environment Upgrade**.
+  - 프로젝트 전체 가상환경을 Python 3.11.13으로 업그레이드.
+  - `requirements.txt`를 갱신하여 3.11 환경에 맞는 의존성 재구성.
+
+### 2. 자동 마이그레이션 스크립트로 인한 SyntaxError 발생
+- **현상**: `POST /ai/v1/planners` 호출 시 백그라운드 태스크에서 데이터 저장이 되지 않고 로그에 `SyntaxError: invalid syntax` 기록됨.
+- **원인**: 타입 힌트를 자동으로 변환하는 과정에서 `planner_repository.py` 등 일부 파일의 딕셔너리 선언부 쉼표(,)가 누락되거나 잘못된 위치에 배치됨.
+- **해결**: **Manual Code Review and Fix**.
+  - `planner_repository.py`의 모든 딕셔너리 및 함수 인자 리스트를 전수 조사하여 누락된 쉼표를 복구함.
+  - `python -m compileall app/` 명령어를 통해 프로젝트 내의 모든 구문 오류가 해결되었음을 검증함.
+
+---
+
 ## 2026-02-20
 
 ### 1. weekly_reports 테이블 업데이트 시 updated_at 갱신 누락

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import AsyncGenerator, Annotated, Any
 
 from app.db.supabase_client import get_supabase_client
 from app.models.personalization import (
@@ -32,8 +32,8 @@ class PersonalizationRepository:
             
         task_to_day_map = {t.task_id: t.day_plan_id for t in request.schedules}
         
-        schedules_by_day: Dict[int, List[ScheduleIngestItem]] = {}
-        histories_by_day: Dict[int, List[ScheduleHistoryIngestItem]] = {}
+        schedules_by_day: dict[int, list[ScheduleIngestItem]] = {}
+        histories_by_day: dict[int, list[ScheduleHistoryIngestItem]] = {}
         
         for item in request.schedules:
             if item.day_plan_id not in schedules_by_day:
@@ -146,7 +146,7 @@ class PersonalizationRepository:
 
         return True
 
-    def _calculate_fill_rate(self, schedules: List[ScheduleIngestItem], day_end_time: str) -> float:
+    def _calculate_fill_rate(self, schedules: list[ScheduleIngestItem], day_end_time: str) -> float:
         """
         가동률(Fill Rate) 계산
         - 분모: 00:00 ~ day_end_time 까지의 총 분

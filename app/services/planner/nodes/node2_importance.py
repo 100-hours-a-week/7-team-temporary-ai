@@ -1,5 +1,4 @@
 import logfire  # [Logfire] Import
-from typing import Dict, Optional
 from app.models.planner.internal import PlannerGraphState, TaskFeature
 from app.models.planner.request import ScheduleItem
 
@@ -26,15 +25,15 @@ def node2_importance(state: PlannerGraphState) -> PlannerGraphState:
 
     weights = state.weights # 가중치
     
-    new_task_features: Dict[int, TaskFeature] = {} 
+    new_task_features: dict[int, TaskFeature] = {} 
     
     # [Logfire] 입력 데이터 로깅
     logfire.info("Node 2 Input Data", input={"taskFeatures": state.taskFeatures, "weights": state.weights})
     
-    flex_task_map: Dict[int, ScheduleItem] = {t.taskId: t for t in state.flexTasks}
+    flex_task_map: dict[int, ScheduleItem] = {t.taskId: t for t in state.flexTasks}
 
     for task_id, feature in state.taskFeatures.items():
-        original_task: Optional[ScheduleItem] = flex_task_map.get(task_id)
+        original_task: ScheduleItem | None = flex_task_map.get(task_id)
         
         # Node 1 결과 검정
         if not original_task:

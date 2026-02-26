@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Literal
+from typing import AsyncGenerator, Annotated, Literal
 from pydantic import BaseModel, Field
 from app.models.planner.request import TimeZone, ArrangementState, ScheduleItem
 from app.models.planner.weights import WeightParams
@@ -8,7 +8,7 @@ class FreeSession(BaseModel):
     start: int  # minutes from midnight
     end: int    # minutes from midnight
     duration: int
-    timeZoneProfile: Dict[TimeZone, int]  # zone별 포함된 분
+    timeZoneProfile: dict[TimeZone, int]  # zone별 포함된 분
 
 class TaskFeature(BaseModel):
     taskId: int
@@ -18,11 +18,11 @@ class TaskFeature(BaseModel):
 
     
     # Node1: Structure Analysis
-    category: Optional[str] = None
-    cognitiveLoad: Optional[Literal["LOW", "MED", "HIGH"]] = None
-    groupId: Optional[str] = None
-    groupLabel: Optional[str] = None
-    orderInGroup: Optional[int] = None
+    category: str | None = None
+    cognitiveLoad: Literal["LOW", "MED", "HIGH"] | None = None
+    groupId: str | None = None
+    groupLabel: str | None = None
+    orderInGroup: int | None = None
     
     # Node2: Importance
     importanceScore: float = 0.0
@@ -35,28 +35,28 @@ class TaskFeature(BaseModel):
 
 class ChainCandidate(BaseModel):
     chainId: str
-    timeZoneQueues: Dict[TimeZone, List[int]]  # zone -> list of taskIds
-    rationaleTags: List[str] = []
+    timeZoneQueues: dict[TimeZone, list[int]]  # zone -> list of taskIds
+    rationaleTags: list[str] = []
 
 class PlannerGraphState(BaseModel):
     request: ArrangementState
     weights: WeightParams
 
-    fixedTasks: List[ScheduleItem] = Field(default_factory=list)
-    flexTasks: List[ScheduleItem] = Field(default_factory=list)
+    fixedTasks: list[ScheduleItem] = Field(default_factory=list)
+    flexTasks: list[ScheduleItem] = Field(default_factory=list)
 
-    freeSessions: List[FreeSession] = Field(default_factory=list)
-    taskFeatures: Dict[int, TaskFeature] = Field(default_factory=dict)
+    freeSessions: list[FreeSession] = Field(default_factory=list)
+    taskFeatures: dict[int, TaskFeature] = Field(default_factory=dict)
 
-    chainCandidates: List[ChainCandidate] = Field(default_factory=list)
-    selectedChainId: Optional[str] = None
+    chainCandidates: list[ChainCandidate] = Field(default_factory=list)
+    selectedChainId: str | None = None
 
-    finalResults: List[AssignmentResult] = Field(default_factory=list)
+    finalResults: list[AssignmentResult] = Field(default_factory=list)
 
     # retries / diagnostics
     retry_node1: int = 0
     retry_node3: int = 0
     replan_loops: int = 0
-    warnings: List[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
     fillRate: float = 1.0
 

@@ -1,10 +1,9 @@
 from pydantic import BaseModel
-from typing import Dict
 
 class WeightParams(BaseModel):
     w_focus: float = 1.0
     w_urgent: float = 5.0
-    w_category: Dict[str, float] = {
+    w_category: dict[str, float] = {
         "학업": 3.0,
         "업무": 2.5,
         "운동": 1.5,

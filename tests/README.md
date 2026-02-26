@@ -83,6 +83,17 @@ pytest tests/test_chat_service.py -v
 1. 백엔드 서버를 구동합니다 (`python -m uvicorn app.main:app --reload`).
 2. 브라우저에서 [http://localhost:8000/ai/v2/reports/9001/chat/test](http://localhost:8000/ai/v2/reports/9001/chat/test) 접속.
 
+### 9. `test_mcp_server.py` (New)
+- **목적**: MCP(Model Context Protocol) 서버의 도구(`search_schedules_by_date`) 로직 검증
+- **주요 기능**:
+  - `unittest.mock`을 사용하여 Supabase DB 호출을 가상(Mock)으로 대체.
+  - 날짜 범위 검색에 따른 결과 Markdown 생성 로직의 정확성 확인.
+  - 데이터 부재 시 혹은 DB 에러 발생 시 예외 처리 로직 점검.
+- **실행**:
+```bash
+python -m pytest tests/test_mcp_server.py
+```
+
 ---
 
 ## 실행 방법 (전체)

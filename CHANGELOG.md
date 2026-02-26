@@ -4,6 +4,36 @@
 
 ---
 
+## 2026-02-25
+
+### Python 3.11 업그레이드 및 코드 프로젝트 전반 최적화
+
+**목적**: 최신 MCP(Model Context Protocol) 라이브러리와의 호환성을 확보하고, 파리썬 3.11+의 최신 기능을 활용하여 코드 품질과 유지보수성을 향상함.
+
+#### 주요 변경 사항
+
+1. **Python 버전 업그레이드 (3.9 -> 3.11)**
+   - 개발 환경 및 의존성 패키지를 Python 3.11 기반으로 전면 교체.
+   - `requirements.txt` 최신화 및 `pytest-asyncio` 등 필수 비동기 테스트 패키지 추가.
+
+2. **전역 타입 힌트 마이그레이션 (Modern Type Hinting)**
+   - 프로젝트 전체의 구형 타입 힌트(`Optional`, `Union`, `List`, `Dict`)를 파이썬 3.10+ 표준 문법(`|`, `list`, `dict`)으로 변환.
+   - `Annotated`, `AsyncGenerator` 등 누락된 타입 임포트 보정.
+
+3. **MCP (Model Context Protocol) 서버 및 테스트 클라이언트 개발**
+   - **MCP Server (`app/mcp/server.py`)**: `search_schedules_by_date` 도구를 통해 사용자의 과거 플래너 데이터를 조회하는 서버 구축.
+   - **Test Client (`tests_local/mcp_test_client.py`)**: Gemini 2.5 Flash 모델과 상호작용하며 MCP 도구를 호출하는 엔드 투 엔드 테스트 클라이언트 구현.
+
+4. **MCP 관측성(Observability) 강화 (Logfire 연동)**
+   - MCP 서버의 도구 호출 및 테스트 클라이언트의 전체 실행 흐름에 Logfire 모니터링 적용.
+   - DB 조회 성능 및 LLM 추론 과정을 트레이싱할 수 있는 기반 마련.
+
+5. **마이그레이션 후속 조치 및 버그 수정**
+   - **구문 오류 수정**: 자동 마이그레이션 스크립트에 의해 발생한 `planner_repository.py` 내 딕셔너리 쉼표(,) 누락 등 구문 오류(SyntaxError)를 해결.
+   - **비동기 테스트 환경 안정화**: Python 3.11 환경에서 `pytest`가 올바르게 동작하도록 비동기 루프 설정 최적화.
+
+---
+
 ## 2026-02-21
 
 ### 주간 레포트 데이터 조회 (Fetch) API 구현 및 스키마 반영

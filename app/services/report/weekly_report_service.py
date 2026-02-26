@@ -2,7 +2,6 @@ import asyncio
 import logging
 import logfire
 from datetime import date
-from typing import List
 
 from app.models.report import WeeklyReportGenerateRequest
 from app.db.repositories.report_repository import ReportRepository
