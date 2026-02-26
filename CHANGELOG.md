@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-02-26
+
+### 플래너 태스크 임베딩 동기화 스케줄러 구현
+
+**목적**: MCP(Model Context Protocol) 또는 검색 백엔드에서 유사도 검색(Semantic Search)을 수행할 수 있도록, 데이터베이스(`record_tasks`)에 누락된 임베딩 벡터(`combined_embedding_text`) 데이터를 정기적으로 채워넣는 백그라운드 파이프라인을 구축함.
+
+#### 주요 변경 사항
+
+1. **FastAPI Lifespan 백그라운드 스케줄러 (`app/core/scheduler.py`, `app/main.py`)**
+   - **스케줄링**: 매주 월요일 새벽 4시에 1회 실행되는 비동기 무한 루프 스케줄러를 `lifespan` 컨텍스트에 등록하여 서버 가동 시 자동 시작/종료되도록 안전하게 구현.
+   
+2. **임베딩 동기화 로직 (`app/services/embedding_service.py`)**
+   - **데이터 필터링**: API 비용과 소요 시간을 최소화하기 위해 '최근 최대 8일간(plan_date 기준) 생성된 `USER_FINAL` 타입'의 부모만 찾은 뒤, 이 중 `combined_embedding_text IS NULL`인 하위 태스크만 추출하는 쿼리 적용.
+   - **Gemini API 연동**: `gemini-embedding-001` (768차원) 모델을 사용하여 태스크의 타이틀(`title`)을 임베딩하고 즉시 Supabase 테이블(`record_tasks`)에 `UPDATE` 처리.
+   - **스레드 차단 방지**: API 호출을 `asyncio.to_thread`로 오프로딩하여 긴 배치 작업 중에도 메인 이벤트 루프의 병목 차단.
+
+3. **Logfire 관측성(Observability) 적용**
+   - **Span Tracing**: 처리 범위(start_date, end_date), 탐색된 태스크 수, 성공 건수, 에러 내역 등을 `logfire.span("Sync Task Embeddings")` 내에 속성(`span.set_attribute`)으로 꼼꼼히 기록하여 중앙 대시보드에서 스케줄러 점검 및 에러 모니터링이 가능하도록 구성.
+
+---
+
 ## 2026-02-25
 
 ### Python 3.11 업그레이드 및 코드 프로젝트 전반 최적화

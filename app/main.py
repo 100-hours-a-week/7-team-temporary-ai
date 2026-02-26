@@ -5,6 +5,8 @@ FastAPI 애플리케이션 진입점
 """
 
 import logging
+import asyncio
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +16,7 @@ load_dotenv()
 
 from app.core.config import settings
 from app.api import v1, v2
+from app.core.scheduler import run_embedding_scheduler
 import logfire
 
 # Logfire 설정 (관측성)
@@ -28,12 +31,34 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- Startup ---
+    logger.info(f"🚀 Starting {settings.app_name}")
+    logger.info(f"📍 Backend URL: {settings.backend_url}")
+    logger.info(f"🔧 Debug mode: {settings.debug}")
+    logger.info(f"🌐 CORS origins: {settings.cors_origins}")
+    
+    # 임베딩 스케줄러 백그라운드 구동
+    scheduler_task = asyncio.create_task(run_embedding_scheduler())
+    
+    yield
+    
+    # --- Shutdown ---
+    logger.info(f"🛑 Shutting down {settings.app_name}")
+    scheduler_task.cancel()
+    try:
+        await scheduler_task
+    except asyncio.CancelledError:
+        pass
+
 # FastAPI 앱 초기화
 app = FastAPI(
     title=settings.app_name, # 지정한 애플리케이션 이름
     description="MOLIP AI 기능 서버",
     version=VERSION,
     debug=settings.debug,
+    lifespan=lifespan,
 )
 
 # Logfire FastAPI Instrumentation
@@ -88,21 +113,7 @@ async def root():
     }
 
 
-# 애플리케이션 시작 이벤트
-@app.on_event("startup")
-async def startup_event():
-    """서버 시작 시 실행"""
-    logger.info(f"🚀 Starting {settings.app_name}")
-    logger.info(f"📍 Backend URL: {settings.backend_url}")
-    logger.info(f"🔧 Debug mode: {settings.debug}")
-    logger.info(f"🌐 CORS origins: {settings.cors_origins}")
-
-
-# 애플리케이션 종료 이벤트
-@app.on_event("shutdown")
-async def shutdown_event():
-    """서버 종료 시 실행"""
-    logger.info(f"🛑 Shutting down {settings.app_name}")
+# Startup/Shutdown 이벤트 핸들러는 lifespan으로 대체되었습니다.
 
 
 # 애플리케이션 실행
