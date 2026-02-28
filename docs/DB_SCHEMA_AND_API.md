@@ -1,8 +1,8 @@
 # AI 플래너 & 개인화 데이터베이스 스키마 및 API 연동 문서
 
-> **작성일:** 2026-01-27
+> **작성일:** 2026-01-27 (업데이트: 2026-02-26)
 > **목적:** AI 서비스의 데이터베이스(Supabase) 전체 스키마 정의 및 `POST /ai/v1/personalizations/ingest` API 상세 연동 가이드
-> **참고:** 기존 `planner_records` 스키마에 개인화 학습을 위한 필드(`age`, `gender`, `status`) 및 이력 테이블(`schedule_histories`)이 추가되었습니다.
+> **참고 (2026-02-26):** AI_DRAFT와 USER_FINAL의 날짜 동기화를 위한 `planner_date` 컬럼과 상속 트리거 로직이 추가되었습니다.
 
 ---
 
@@ -60,6 +60,57 @@ erDiagram
 ```sql
 -- pgvector 확장 기능 활성화 (임베딩 검색용)
 CREATE EXTENSION IF NOT EXISTS vector;
+
+-- ============================================
+-- 0) RPC Functions: 임베딩 검색 (MCP Tool 연동)
+-- ============================================
+-- 용도: 챗봇 MCP에서 의미적 유사도(Semantic Search) 기반 과거 태스크 검색을 위한 DB 내장 함수
+CREATE OR REPLACE FUNCTION match_record_tasks (
+  p_user_id bigint,
+  query_embedding vector(768),
+  match_count int
+)
+RETURNS TABLE (
+  id bigint,
+  record_id bigint,
+  title varchar,
+  status varchar,
+  focus_level int,
+  is_urgent boolean,
+  category varchar,
+  start_at varchar,
+  end_at varchar,
+  planner_date date,
+  focus_time_zone varchar,
+  similarity float
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    rt.id,
+    rt.record_id,
+    rt.title,
+    rt.status,
+    rt.focus_level,
+    rt.is_urgent,
+    rt.category,
+    rt.start_at,
+    rt.end_at,
+    pr.planner_date,
+    pr.focus_time_zone,
+    1 - (rt.combined_embedding_text::vector <=> query_embedding) AS similarity
+  FROM record_tasks rt
+  JOIN planner_records pr ON pr.id = rt.record_id
+  WHERE pr.user_id = p_user_id
+    AND pr.record_type = 'USER_FINAL'
+    AND rt.assignment_status = 'ASSIGNED'
+    AND rt.combined_embedding_text IS NOT NULL
+  ORDER BY rt.combined_embedding_text::vector <=> query_embedding
+  LIMIT match_count;
+END;
+$$;
 
 -- ============================================
 -- 1) user_weights: 개인화 가중치
@@ -120,6 +171,9 @@ CREATE TABLE planner_records (
     user_age INT,                        -- 나이
     user_gender VARCHAR(10),             -- 성별 ('MALE', 'FEMALE', 'OTHER')
 
+    -- [NEW: 26.02.26] 데일리 플래너 날짜 관리용 (트리거로 최초 생성일 자동 상속됨)
+    planner_date DATE NOT NULL,
+
     -- 결과 요약
     total_tasks INT NOT NULL,            -- 전체 FLEX 작업 수
     assigned_count INT NOT NULL,         -- 배치된 작업 수
@@ -135,6 +189,35 @@ CREATE TABLE planner_records (
 CREATE INDEX idx_records_user_day ON planner_records(user_id, day_plan_id);
 CREATE INDEX idx_records_type ON planner_records(record_type);
 CREATE INDEX idx_records_created ON planner_records(created_at);
+CREATE INDEX idx_records_planner_date ON planner_records(planner_date);
+
+-- 트리거 함수: 동일 day_plan_id에 대해 최초 삽입 날짜 상속
+CREATE OR REPLACE FUNCTION set_planner_date()
+RETURNS TRIGGER AS $$
+DECLARE
+    first_date DATE;
+BEGIN
+    SELECT planner_date INTO first_date
+    FROM planner_records
+    WHERE day_plan_id = NEW.day_plan_id
+    ORDER BY created_at ASC
+    LIMIT 1;
+
+    IF first_date IS NOT NULL THEN
+        NEW.planner_date = first_date;
+    ELSE
+        -- 첫 삽입 시
+        NEW.planner_date = COALESCE(NEW.created_at::date, CURRENT_DATE);
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_set_planner_date
+BEFORE INSERT ON planner_records
+FOR EACH ROW
+EXECUTE FUNCTION set_planner_date();
 
 -- ============================================
 -- 3) record_tasks: 개별 작업 상세
@@ -338,12 +421,23 @@ GEMINI_API_KEY=your-gemini-api-key
 기존 데이터는 `UPDATE` 문으로 채워줍니다.
 
 ```sql
--- 1) planner_records: 플래너 날짜
+-- 1) planner_records: 플래너 날짜 (26.02.26 업데이트: planner_date 추가 및 트리거 적용)
 ALTER TABLE planner_records 
-ADD COLUMN plan_date DATE NOT NULL DEFAULT CURRENT_DATE;
+ADD COLUMN planner_date DATE;
 
--- 기존 데이터 업데이트 (created_at 기준)
-UPDATE planner_records SET plan_date = created_at::date;
+WITH first_records AS (
+    SELECT day_plan_id, MIN(created_at::date) as first_date
+    FROM planner_records
+    GROUP BY day_plan_id
+)
+UPDATE planner_records pr
+SET planner_date = fr.first_date
+FROM first_records fr
+WHERE pr.day_plan_id = fr.day_plan_id;
+
+ALTER TABLE planner_records ALTER COLUMN planner_date SET NOT NULL;
+
+-- 트리거 설정 스크립트 (본문의 스키마 DDL 참조) 위에서 이미 실행되었음.
 
 
 -- 2) record_tasks: 작업 날짜
