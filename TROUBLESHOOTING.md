@@ -4,6 +4,39 @@ MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 �
 
 ---
 
+## 2026-02-28
+
+### 1. MCP 도구 실행을 위한 User ID 부재 현상 (Report ID 역추적)
+- **현상**: 주간 레포트 상세 화면에서 사용 가능한 챗봇에 MCP(Model Context Protocol) 툴(`search_schedules_by_date`, `search_tasks_by_similarity`)을 연동하려고 하였으나, MCP 툴들은 매개변수로 특정 유저의 데이터만 제한적으로 조회하기 위해 `user_id`를 강제로 요구함. 하지만 클라이언트 챗봇 API(`POST /ai/v2/reports/{reportId}/chat`) 요청 명세에는 `reportId`와 메시지만 존재하고 클라이언트의 직접적인 `userId`는 전송되지 않는 문제가 발생.
+- **원인**: 시스템 설계 시 리포트 챗봇은 해당 리포트의 컨텍스트 안에서만 동작하도록 되어 있어, 클라이언트는 자신이 누구인지 별도로 인증하거나 전송하지 않아도 됨(토큰이나 userId 없이 `reportId`만 파라미터로 공유됨).
+- **해결**: **Backend Data Enrichment (DB 역추적)**.
+  - `ChatService._generate_task` 로직 초입에서 `report_id`를 기반으로 `ReportRepository.fetch_user_id_by_report_id` 메서드(`SELECT user_id FROM weekly_reports WHERE id=...`)를 비동기로 호출하여 실제 작성자의 ID를 선행 식별함.
+  - 찾아낸 `user_id` 값을 람다(Lambda)나 Pydantic 필드 주입 방식을 이용해, FastMCP에서 요구하는 툴 함수(`search_tasks_by_similarity(user_id, ...)`)의 내부 변수로 하드 주입함으로써 챗봇이 어떤 사용자의 데이터를 열람할지 명확히 연결함.
+
+### 2. 제너레이터(Generator) 예외 처리 시 StopIteration 및 AttributeError 혼선
+- **현상**: `ChatService` 503 에러 발생 시 재시도 로직을 테스트(`test_chat_service.py`)할 때, 3번의 `503 에러` 후 4번째에 정상 동작(Async Generator 반환)되는 상황을 Mocking 했으나 `AssertionError: assert 'error' == 'chunk'`가 발생하며 스트림이 깨짐.
+- **원인**: Mock 객체의 `side_effect` 리스트 인자 개수 부족으로 `StopIteration`이 불거지거나, 정상 반환된 `MockChunk` 클래스에 `function_calls` 같은 속성이 누락되어 `AttributeError`가 발생. `ChatService._generate_task`가 `except Exception:`으로 광범위하게 에러를 잡고 있어 모든 런타임 오류가 `Gemini streaming error`나 `error` 이벤트로 묻혀 파악이 어려웠음.
+- **해결**: **Mock Object Complete Property Mapping**.
+  - `FakeAPIError`를 단순한 `Exception` 기반 에러 문자열 캐칭 방식으로 단순화하고, 정상 반환될 비동기 제너레이터(`mock_async_generator()`) 내 `MockChunk` 속성에 `chat_service.py` 내부 파서가 참조하는 `function_calls` 더미 값을 함께 주입(`self.function_calls = None`)하여 코드가 중간에 AttributeError 없이 정상적으로 흐르도록 테스트 픽스처 전면 수정.
+
+## 2026-02-25
+
+### 1. MCP 라이브러리 사용을 위한 Python 버전 호환성 이슈
+- **현상**: MCP SDK 설치 시 `Python >= 3.10` 요구 조건으로 인해 기존 3.9 환경에서 설치 실패.
+- **원인**: 최신 MCP 패키지가 파이썬의 최신 비동기 및 타입 시스템 기능을 요구함.
+- **해결**: **Environment Upgrade**.
+  - 프로젝트 전체 가상환경을 Python 3.11.13으로 업그레이드.
+  - `requirements.txt`를 갱신하여 3.11 환경에 맞는 의존성 재구성.
+
+### 2. 자동 마이그레이션 스크립트로 인한 SyntaxError 발생
+- **현상**: `POST /ai/v1/planners` 호출 시 백그라운드 태스크에서 데이터 저장이 되지 않고 로그에 `SyntaxError: invalid syntax` 기록됨.
+- **원인**: 타입 힌트를 자동으로 변환하는 과정에서 `planner_repository.py` 등 일부 파일의 딕셔너리 선언부 쉼표(,)가 누락되거나 잘못된 위치에 배치됨.
+- **해결**: **Manual Code Review and Fix**.
+  - `planner_repository.py`의 모든 딕셔너리 및 함수 인자 리스트를 전수 조사하여 누락된 쉼표를 복구함.
+  - `python -m compileall app/` 명령어를 통해 프로젝트 내의 모든 구문 오류가 해결되었음을 검증함.
+
+---
+
 ## 2026-02-20
 
 ### 1. weekly_reports 테이블 업데이트 시 updated_at 갱신 누락

@@ -1,4 +1,4 @@
-from typing import Dict, List, Set, Tuple
+from typing import AsyncGenerator, Annotated, Set, Tuple
 from collections import defaultdict
 import math
 import logfire  # [Logfire] Import
@@ -6,7 +6,7 @@ import logfire  # [Logfire] Import
 from app.models.planner.internal import PlannerGraphState, ChainCandidate, TaskFeature
 from app.services.planner.utils.session_utils import calculate_capacity
 
-def apply_closure(chain: ChainCandidate, task_features: Dict[int, TaskFeature]) -> ChainCandidate:
+def apply_closure(chain: ChainCandidate, task_features: dict[int, TaskFeature]) -> ChainCandidate:
     """
     그룹 작업의 순서(Closure)를 강제합니다.
     규칙: 그룹 내 순서 N이 포함되려면 1..N-1도 반드시 포함되어야 함.
@@ -92,11 +92,11 @@ def overflow_penalty(overflow: int, capacity: int, w_overflow: float) -> float:
 
 def calculate_chain_score(
     chain: ChainCandidate, 
-    task_features: Dict[int, TaskFeature],
-    capacity: Dict[str, int],
+    task_features: dict[int, TaskFeature],
+    capacity: dict[str, int],
     weights, # WeightParams
     focus_timezone: str
-) -> Tuple[float, Dict[str, float]]:
+) -> Tuple[float, dict[str, float]]:
     """
     체인 점수 계산
     Returns: (Total Score, Details Dict)

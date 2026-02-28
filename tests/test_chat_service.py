@@ -107,26 +107,25 @@ async def test_generate_task_fallback_logic(chat_service, sample_request):
         class MockChunk:
             def __init__(self, text):
                 self.text = text
+                self.function_calls = None
         yield MockChunk("Fallback")
         yield MockChunk("Success")
         
     mock_generate = chat_service.gemini.client.aio.models.generate_content_stream
+    report_id = 9001
     
-    # 3번 실패 (503 에러), 4번째 (fallback) 성공
-    class FakeAPIError(APIError):
-        def __init__(self, message, code):
-            super().__init__(message, {"error": {"message": message}})
-            self.code = code
-            
     mock_generate.side_effect = [
-        FakeAPIError("503 Server Error 1", code=503),
-        FakeAPIError("503 Server Error 2", code=503),
-        FakeAPIError("503 Server Error 3", code=503),
+        Exception("503 Server Error 1"),
+        Exception("503 Server Error 2"),
+        Exception("503 Server Error 3"),
         mock_async_generator() # 4번째 호출은 제너레이터 정상 반환
     ]
     
-    with patch("app.services.report.chat_service.asyncio.sleep", new_callable=AsyncMock):
-        await chat_service._generate_task(message_id, sample_request.messages)
+    with patch("app.services.report.chat_service.asyncio.sleep", new_callable=AsyncMock), \
+         patch("app.db.repositories.report_repository.ReportRepository.fetch_user_id_by_report_id", new_callable=AsyncMock) as mock_fetch_user:
+         
+        mock_fetch_user.return_value = 777777 # Mock valid user_id
+        await chat_service._generate_task(report_id, message_id, sample_request.messages)
         
     # 총 4번 호출되었는지 검증
     assert mock_generate.call_count == 4

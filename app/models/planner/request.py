@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional, Literal
+from typing import AsyncGenerator, Annotated, Literal
 
 TimeZone = Literal["MORNING", "AFTERNOON", "EVENING", "NIGHT"]
 TaskType = Literal["FIXED", "FLEX"]
@@ -12,19 +12,19 @@ class UserInfo(BaseModel):
 
 class ScheduleItem(BaseModel):
     taskId: int
-    parentScheduleId: Optional[int] = None
+    parentScheduleId: int | None = None
     dayPlanId: int
     title: str
     type: TaskType           # FIXED | FLEX
-    startAt: Optional[str] = None
-    endAt: Optional[str] = None
-    estimatedTimeRange: Optional[EstimatedTimeRange] = None
-    focusLevel: Optional[int] = None
-    isUrgent: Optional[bool] = None
+    startAt: str | None = None
+    endAt: str | None = None
+    estimatedTimeRange: EstimatedTimeRange | None = None
+    focusLevel: int | None = None
+    isUrgent: bool | None = None
 
 
 
 class ArrangementState(BaseModel):
     user: UserInfo
     startArrange: str
-    schedules: List[ScheduleItem]
+    schedules: list[ScheduleItem]

@@ -4,6 +4,123 @@
 
 ---
 
+## 2026-02-28
+
+### 챗봇 시스템(ChatService) MCP(Model Context Protocol) 도구 완벽 연동
+
+**목적**: 사용자가 리포트 화면에서 챗봇에게 주간 달성 또는 과거 일정 관해 질문했을 때, AI가 스스로 도구를 호출(Function Calling)하여 DB의 과거 데이터를 읽어오고 정확한 답변을 제공할 수 있도록 지능형 에이전트로 업그레이드함.
+
+#### 주요 변경 사항
+
+1. **FastMCP 도구 바인딩 (`app/services/report/chat_service.py`)**
+   - **Tool Injection**: Gemini API(`generate_content_stream`) 호출 시 사전에 만들어둔 FastMCP 서버의 특정 엔드포인트 도구들(`search_schedules_by_date`, `search_tasks_by_similarity`)을 주입.
+   - **Function Calling Loop**: 챗봇이 일반 텍스트가 아닌 `function_calls`를 반환할 때 이를 감지하여, 서버 내부 함수를 실행하고 그 결과(`function_responses`)를 다시 LLM에 전달하는 다중 턴 구조 완성.
+
+2. **사용자 컨텍스트(User Context) 동적 매핑**
+   - **Report ID 기반 역추적 (`app/db/repositories/report_repository.py`)**: 클라이언트가 챗봇 호출 시 `user_id` 대신 `reportId`만 전송하더라도, 백엔드에서 `fetch_user_id_by_report_id` 를 통해 작성자 ID를 조회하여 보안 토큰 없이도 안전하게 사용자의 개인화된 MCP 도구를 실행할 수 있도록 보강.
+
+3. **장애 대응 및 재시도 로직 강화 (Fallback Strategy)**
+   - **503 무한 재시도**: Gemini 외부 API 장애(503, 429 에러 등) 발생 시 스트림이 끊어지지 않도록, 지수 백오프 기반의 자동 재시도 로직 구현.
+   - **모델 강등(Model Downgrade)**: 3회 이상 실패 시 `gemini-2.5-flash-lite`에서 `gemini-2.5-flash` 모델로 자동 Fallback 하여 안정성 극대화.
+
+4. **단위 테스트 및 에러 처리 규격화 (`test_chat_service.py`, `test_mcp_server.py`)**
+   - 파라미터 불일치(`embedding_vector` → `query`, `plan_date` → `planner_date`)로 깨졌던 기존 MCP 단위 테스트 전면 수정 및 Mock(AsyncMock) 보강.
+   - `MockChunk`의 `AttributeError` 같은 세부 예외를 테스트가 온벽히 커버하도록 재작성하여 CI/CD 안정성 확보.
+
+## 2026-02-26
+
+### 의미 체계 기반(Semantic) 스케줄 검색 MCP 도구 및 테스트 클라이언트 구현
+
+**목적**: 사용자가 자연어로 과거 일정(플래너)을 물어봤을 때, 텍스트가 정확히 일치하지 않아도 의미적(행위적)으로 가장 유사한 스케줄을 데이터베이스에서 빠르고 똑똑하게 찾아오는 고도화된 RAG 검색 도구를 구현함.
+
+#### 주요 변경 사항
+
+1. **DB 유사도 검색 RPC 구현 (`docs/DB_SCHEMA_AND_API.md`)**
+   - **`match_record_tasks` Stored Procedure**: Supabase(PostgreSQL) 내부에 `pgvector` 확장을 활용한 코사인 유사도 연산 함수 작성.
+   - 클라이언트에서 768차원 텍스트 임베딩 벡터와 `match_count`(기본 5개)를 전달받아, `record_tasks` 테이블과 `planner_records` 테이블을 JOIN하여 `user_id`와 `record_type='USER_FINAL'` 조건에 맞는 유사 일정 추출 후 반환.
+
+2. **Semantic Search MCP 도구 연동 (`app/mcp/server.py`)**
+   - **`search_tasks_by_similarity`**: 기존 날짜 검색 도구에 이어 두 번째 FastMCP 툴을 서버에 등록.
+   - Pydantic 스키마 및 마크다운 포맷터를 활용하여, DB(RPC)에서 받아온 결과를 LLM이 가장 직관적으로 읽고 이해할 수 있는 형태(`### 1. ⏳ 재무관리 기출문제...`)로 가공.
+   - **Observability**: 검색 시 `logfire.instrument`를 통해 소요 시간 및 에러율 감시 체계 연동.
+
+3. **로컬 연동 테스트 클라이언트 고도화 (`tests_local/mcp_semantic_test_client.py`)**
+   - **Gemini 임베딩 연동**: `gemini-embedding-001` 모델과 `output_dimensionality=768` 옵션을 적용하여, 사용자의 한국어 질문 문자열을 정확한 768차원 Float 배열로 변환하도록 구현.
+   - **ToolConfig 강제 호출**: LLM이 일반 답변을 생성하기 전에 무조건 `search_tasks_by_similarity` 도구를 먼저 호출하여 검색 결과를 참고하도록 제어(`types.FunctionCallingConfigMode.ANY` 정책 사용).
+   - "운동과 관련된 계획" 또는 "모의고사 관련 일정" 등의 자연어 프롬프트를 정확히 인식하여 DB의 상위 5개 내역을 잘 가져오는지 End-to-End 검증 완료.
+
+4. **단위 테스트(Unit Test) 작성 (`tests/test_mcp_server.py`)**
+   - **Mocking Strategy**: Supabase Client의 `rpc()` 호출을 MagicMock으로 대체하여 외부 종속성을 끊은 독립적인 테스트 환경 구축.
+   - 정상 검색, 데이터 없음, DB 통신 에러 등 3가지 주요 예외 케이스에 대한 엣지 검증 로직 수립.
+
+---
+
+### 데일리 플래너 날짜 관리 개선 (`planner_date` 추가)
+
+**목적**: AI_DRAFT(임시 저장)와 USER_FINAL(일괄 적재)의 실제 기록된 시간대가 달라져서 발생하는 "데일리 플래너의 날짜 부정합" 문제를 해결하기 위해, 최초 플래너 생성일자를 자동으로 상속받는 전용 필드를 도입함.
+
+#### 주요 변경 사항
+
+1. **DB 스키마 및 마이그레이션 (`docs/DB_SCHEMA_AND_API.md`)**
+   - **`planner_date` 신설**: `planner_records` 테이블에 최초 플래너 기동 일자를 담는 날짜 컬럼 추가.
+   - **트리거(`trg_set_planner_date`) 적용**: 데이터베이스 Insert 시 동일한 `day_plan_id`가 존재한다면 과거의 최초 `planner_date`를 무조건 상속받도록 DB 수준에서 보장 (백엔드 코드 수정 불필요).
+   - **기존 데이터 마이그레이션**: 앞서 기록된 모든 데이터들의 `UPDATE` 문을 통한 일괄 동기화 완료.
+
+2. **MCP 서버 조회 조건 변경 (`app/mcp/server.py`)**
+   - **`search_schedules_by_date`**: 날짜 필터링(`start_date`, `end_date`) 및 결과 출력 기준을 `plan_date`에서 `planner_date`로 변경.
+   - **`search_tasks_by_similarity` (RPC 함수 포함)**: `match_record_tasks` 내부 조건 및 반환값, LLM 포맷팅 변수를 모두 `planner_date`로 변경하여 모델이 정확한 기동 일자를 반영해 답변할 수 있도록 개선.
+
+---
+
+### 플래너 태스크 임베딩 동기화 스케줄러 구현
+
+**목적**: MCP(Model Context Protocol) 또는 검색 백엔드에서 유사도 검색(Semantic Search)을 수행할 수 있도록, 데이터베이스(`record_tasks`)에 누락된 임베딩 벡터(`combined_embedding_text`) 데이터를 정기적으로 채워넣는 백그라운드 파이프라인을 구축함.
+
+#### 주요 변경 사항
+
+1. **FastAPI Lifespan 백그라운드 스케줄러 (`app/core/scheduler.py`, `app/main.py`)**
+   - **스케줄링**: 매주 월요일 새벽 4시에 1회 실행되는 비동기 무한 루프 스케줄러를 `lifespan` 컨텍스트에 등록하여 서버 가동 시 자동 시작/종료되도록 안전하게 구현.
+   
+2. **임베딩 동기화 로직 (`app/services/embedding_service.py`)**
+   - **데이터 필터링**: API 비용과 소요 시간을 최소화하기 위해 '최근 최대 8일간(plan_date 기준) 생성된 `USER_FINAL` 타입'의 부모만 찾은 뒤, 이 중 `combined_embedding_text IS NULL`인 하위 태스크만 추출하는 쿼리 적용.
+   - **Gemini API 연동**: `gemini-embedding-001` (768차원) 모델을 사용하여 태스크의 타이틀(`title`)을 임베딩하고 즉시 Supabase 테이블(`record_tasks`)에 `UPDATE` 처리.
+   - **스레드 차단 방지**: API 호출을 `asyncio.to_thread`로 오프로딩하여 긴 배치 작업 중에도 메인 이벤트 루프의 병목 차단.
+
+3. **Logfire 관측성(Observability) 적용**
+   - **Span Tracing**: 처리 범위(start_date, end_date), 탐색된 태스크 수, 성공 건수, 에러 내역 등을 `logfire.span("Sync Task Embeddings")` 내에 속성(`span.set_attribute`)으로 꼼꼼히 기록하여 중앙 대시보드에서 스케줄러 점검 및 에러 모니터링이 가능하도록 구성.
+
+---
+
+## 2026-02-25
+
+### Python 3.11 업그레이드 및 코드 프로젝트 전반 최적화
+
+**목적**: 최신 MCP(Model Context Protocol) 라이브러리와의 호환성을 확보하고, 파리썬 3.11+의 최신 기능을 활용하여 코드 품질과 유지보수성을 향상함.
+
+#### 주요 변경 사항
+
+1. **Python 버전 업그레이드 (3.9 -> 3.11)**
+   - 개발 환경 및 의존성 패키지를 Python 3.11 기반으로 전면 교체.
+   - `requirements.txt` 최신화 및 `pytest-asyncio` 등 필수 비동기 테스트 패키지 추가.
+
+2. **전역 타입 힌트 마이그레이션 (Modern Type Hinting)**
+   - 프로젝트 전체의 구형 타입 힌트(`Optional`, `Union`, `List`, `Dict`)를 파이썬 3.10+ 표준 문법(`|`, `list`, `dict`)으로 변환.
+   - `Annotated`, `AsyncGenerator` 등 누락된 타입 임포트 보정.
+
+3. **MCP (Model Context Protocol) 서버 및 테스트 클라이언트 개발**
+   - **MCP Server (`app/mcp/server.py`)**: `search_schedules_by_date` 도구를 통해 사용자의 과거 플래너 데이터를 조회하는 서버 구축.
+   - **Test Client (`tests_local/mcp_test_client.py`)**: Gemini 2.5 Flash 모델과 상호작용하며 MCP 도구를 호출하는 엔드 투 엔드 테스트 클라이언트 구현.
+
+4. **MCP 관측성(Observability) 강화 (Logfire 연동)**
+   - MCP 서버의 도구 호출 및 테스트 클라이언트의 전체 실행 흐름에 Logfire 모니터링 적용.
+   - DB 조회 성능 및 LLM 추론 과정을 트레이싱할 수 있는 기반 마련.
+
+5. **마이그레이션 후속 조치 및 버그 수정**
+   - **구문 오류 수정**: 자동 마이그레이션 스크립트에 의해 발생한 `planner_repository.py` 내 딕셔너리 쉼표(,) 누락 등 구문 오류(SyntaxError)를 해결.
+   - **비동기 테스트 환경 안정화**: Python 3.11 환경에서 `pytest`가 올바르게 동작하도록 비동기 루프 설정 최적화.
+
+---
+
 ## 2026-02-21
 
 ### 주간 레포트 데이터 조회 (Fetch) API 구현 및 스키마 반영

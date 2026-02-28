@@ -3,7 +3,7 @@ import json
 import logging
 import asyncio
 import logfire  # [Logfire] Import
-from typing import List, Dict, Any, Optional, Literal
+from typing import AsyncGenerator, Annotated, Any, Optional, Literal
 
 from app.models.planner.internal import TaskFeature, PlannerGraphState
 from app.llm.gemini_client import get_gemini_client
@@ -21,7 +21,7 @@ async def node1_structure_analysis(state: PlannerGraphState) -> PlannerGraphStat
     - parentScheduleId를 기반으로 그룹핑을 강제
     - Structural mismatch에 대한 재시도 로직 구현 (최대 4회)
     """
-    flex_tasks: List[ScheduleItem] = state.flexTasks # FLEX인 Task 리스트
+    flex_tasks: list[ScheduleItem] = state.flexTasks # FLEX인 Task 리스트
     
     # 1. 입력 준비
     client = get_gemini_client()
@@ -98,7 +98,7 @@ async def node1_structure_analysis(state: PlannerGraphState) -> PlannerGraphStat
             continue
     
     # 2. 결과 처리
-    task_features: Dict[int, TaskFeature] = {} # 각 작업에 대한 feature를 저장
+    task_features: dict[int, TaskFeature] = {} # 각 작업에 대한 feature를 저장
     
     # 4번의 재시도가 전부 실패했을 경우
     if not parsed_result:

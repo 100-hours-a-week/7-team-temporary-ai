@@ -62,6 +62,48 @@ python -m pytest tests/test_personalization_ingest_api.py
 pytest tests/test_weekly_report.py -v
 ```
 
+### 7. `test_chat_service.py` (New)
+- **목적**: 챗봇 API 스트리밍(SSE) 및 재시도(Fallback) 처리 검증
+- **주요 기능**:
+  - `unittest.mock`과 `asyncio.Queue`를 사용하여 LLM 스트리밍 응답 가상(Mock) 처리.
+  - 503 에러 발생 시 지정된 횟수만큼 재시도 후 Fallback 모델(`gemini-2.5-flash`)로 전환되는 흐름 점검.
+  - `POST` 세션 초기화, `GET` SSE 이벤트 포맷(`start`, `chunk`, `complete`, `error`), `DELETE` 진행 중인 태스크 취소 로직 검증.
+- **실행**:
+```bash
+pytest tests/test_chat_service.py -v
+```
+
+### 8. `chat_test.html` (UI Test)
+- **목적**: 브라우저 환경에서 SSE 스트리밍과 챗봇 응답이 원활히 동작하는지 시각적으로 테스트.
+- **주요 기능**:
+  - `fetch`를 이용하여 `userId: 999999`, `reportId: 9001`의 주간 레포트 데이터를 초기 로드.
+  - 사용자 질문 전송(`POST /respond`) 및 `EventSource`를 통한 실시간 전송(`GET /stream`) 연동.
+  - **Marked.js**를 사용해 LLM 응답을 마크다운으로 렌더링.
+- **실행**:
+1. 백엔드 서버를 구동합니다 (`python -m uvicorn app.main:app --reload`).
+2. 브라우저에서 [http://localhost:8000/ai/v2/reports/9001/chat/test](http://localhost:8000/ai/v2/reports/9001/chat/test) 접속.
+
+### 9. `test_mcp_server.py` (New)
+- **목적**: MCP(Model Context Context Protocol) 서버의 도구(`search_schedules_by_date`) 로직 검증
+- **주요 기능**:
+  - `unittest.mock`을 사용하여 Supabase DB 호출을 가상(Mock)으로 대체.
+  - 날짜 범위 검색에 따른 결과 Markdown 생성 로직의 정확성 확인.
+  - 데이터 부재 시 혹은 DB 에러 발생 시 예외 처리 로직 점검.
+- **실행**:
+```bash
+python -m pytest tests/test_mcp_server.py
+```
+
+### 10. `test_embedding_sync.py` (New)
+- **목적**: 플래너 태스크 임베딩 스케줄러(`sync_task_embeddings`) 로직 검증
+- **주요 기능**:
+  - `unittest.mock`을 사용하여 Supabase DB 조회/업데이트 및 Gemini 임베딩 API 호출을 가상(Mock)으로 대체.
+  - 최근 8일간 데이터 없음, 업데이트 대상(Null) 태스크 없음, 정상 임베딩 업데이트의 3가지 케이스 커버넌스.
+- **실행**:
+```bash
+python -m pytest tests/test_embedding_sync.py -v
+```
+
 ---
 
 ## 실행 방법 (전체)

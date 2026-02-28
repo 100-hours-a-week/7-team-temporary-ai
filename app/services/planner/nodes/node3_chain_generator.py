@@ -2,7 +2,7 @@ import json
 import logging
 import asyncio
 import logfire  # [Logfire] Import
-from typing import List, Dict, Any
+from typing import AsyncGenerator, Annotated, Any
 
 from app.models.planner.internal import PlannerGraphState, ChainCandidate
 from app.llm.gemini_client import get_gemini_client
@@ -46,7 +46,7 @@ async def node3_chain_generator(state: PlannerGraphState) -> PlannerGraphState:
     
     client = get_gemini_client()
     max_retries = 4
-    candidates_result: List[ChainCandidate] = []
+    candidates_result: list[ChainCandidate] = []
     
     # 2. LLM 호출 및 파싱 (재시도 로직)
     for attempt in range(max_retries + 1):
@@ -83,7 +83,7 @@ async def node3_chain_generator(state: PlannerGraphState) -> PlannerGraphState:
                 # ChainCandidate 생성 (Pydantic validation)
                 cand = ChainCandidate(
                     chainId=chainId,
-                    timeZoneQueues=queues, # Dict[TimeZone, List[int]]
+                    timeZoneQueues=queues, # dict[TimeZone, list[int]]
                     rationaleTags=tags
                 )
                 

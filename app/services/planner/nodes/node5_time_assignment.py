@@ -1,6 +1,6 @@
 import logfire  # [Logfire] Import
 import math
-from typing import List, Dict, Optional, Tuple, Set
+from typing import AsyncGenerator, Annotated, Tuple, Set
 from pydantic import BaseModel
 
 from app.models.planner.internal import PlannerGraphState, FreeSession, TaskFeature, ChainCandidate
@@ -46,19 +46,19 @@ def node5_time_assignment(state: PlannerGraphState) -> PlannerGraphState:
     
     # 작업 큐 준비 (Node 3가 제안한 시간대별 작업 목록)
     # 복사해서 사용 (pop으로 소모할 것이므로)
-    queues: Dict[str, List[int]] = {
+    queues: dict[str, list[int]] = {
         tz: list(ids) for tz, ids in selected_chain.timeZoneQueues.items()
     }
     
     # 결과 저장소
-    results: List[AssignmentResult] = []
+    results: list[AssignmentResult] = []
     assigned_task_ids: Set[int] = set()
 
     # --- 배정 로직 시작 ---
     
     # 자투리(Remainder) 보관함: (parent_task_id, sequence_start_index)
     # Node 5 V1 정책: 자투리는 무조건 다음 가용 세션의 최우선 순위로 들어간다.
-    pending_remainder_id: Optional[int] = None
+    pending_remainder_id: int | None = None
     pending_sequence: int = 1
 
     for session in sessions:
@@ -157,7 +157,7 @@ def node5_time_assignment(state: PlannerGraphState) -> PlannerGraphState:
             allocatable = effective_remaining_time
             
             # 최소 청크(MinChunk) 체크: 
-            # 만약 배정하려는 시간이 너무 짧으면(예: 10분 미만), 
+            # 만약 배정하려는 시간이 너무 짧으면(예: 10분 미만) 
             # 이 세션에는 배정하지 않고 다음 세션으로 넘기는 게 낫다.
             if allocatable < feature.durationMinChunk:
                 # 이 세션 포기, 다음 세션으로 (break while loop)
@@ -253,7 +253,7 @@ def node5_time_assignment(state: PlannerGraphState) -> PlannerGraphState:
             ))
             
     # Soft Rollback (그룹 일관성) - V1에서는 생략 가능하지만, 안전장치로 구현 권장
-    # 구현 복잡도상 V1에서는 "배정된 건 유지" 정책으로 가되, 
+    # 구현 복잡도상 V1에서는 "배정된 건 유지" 정책으로 가되 
     # 차후 고도화 시 추가
 
     # 4. [Post-Processing] 단일 자식(Single Child) Flattening
@@ -299,7 +299,7 @@ def _get_dominant_timezone(session: FreeSession) -> str:
     - 가장 많이 겹치는 시간대를 반환
     - 동점 시: MORNING > AFTERNOON > EVENING > NIGHT 순 (앞 시간대 우선)
     """
-    # session.timeZoneProfile: Dict[TimeZone, int] (이미 계산되어 있음)
+    # session.timeZoneProfile: dict[TimeZone, int] (이미 계산되어 있음)
     # 예: {"MORNING": 30, "AFTERNOON": 90}
     
     if not session.timeZoneProfile:
@@ -317,7 +317,7 @@ def _get_dominant_timezone(session: FreeSession) -> str:
     return sorted_tz[0][0]
 
 
-def _append_child_to_result(results: List[AssignmentResult], parent_id: int, 
+def _append_child_to_result(results: list[AssignmentResult], parent_id: int | None, 
                             parent_title: str, start: str, end: str, seq: int):
     """결과 리스트에서 부모를 찾아 child 추가"""
     # results는 순차적으로 append 되므로, 뒤에서부터 찾는 게 빠를 수 있음

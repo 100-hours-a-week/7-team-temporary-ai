@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import AsyncGenerator, Annotated, Any, Optional
 from app.models.planner.request import ScheduleItem
 
 NODE1_SYSTEM_PROMPT = """
@@ -46,7 +46,7 @@ NODE1_SYSTEM_PROMPT = """
    ```
 """
 
-def format_tasks_for_llm(flex_tasks: List[ScheduleItem]) -> str:
+def format_tasks_for_llm(flex_tasks: list[ScheduleItem]) -> str:
     """
       LLM 입력용 작업 목록 포맷팅
       필요한 정보만 추출하여 입력

@@ -1,4 +1,4 @@
-from typing import List, Optional, Union
+
 from pydantic import AnyHttpUrl, field_validator
 from pydantic_settings import BaseSettings
 
@@ -14,26 +14,26 @@ class Settings(BaseSettings):
     backend_url: str = "https://stg.molip.today" # 백엔드 URL
 
     # CORS
-    cors_origins: Union[str, List[str]] = ["*"] # 모든 도메인 접근 허용
+    cors_origins: str | list[str] = ["*"] # 모든 도메인 접근 허용
     
     # Logging
     log_level: str = "INFO" # 로그의 상세 수준
-    logfire_token: Optional[str] = None # Logfire 토큰
+    logfire_token: str | None = None # Logfire 토큰
 
     # 환경 변수에서 콤마로 구분된 문자열이 들어오면 파이썬 리스트 형태로 변환
     @field_validator("cors_origins", mode="before")
     @classmethod
-    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+    def assemble_cors_origins(cls, v: str | list[str]) -> list[str]:
         if isinstance(v, str) and not v.startswith("["):
             return [i.strip() for i in v.split(",")]
         return v
 
     # API Keys
-    gemini_api_key: Optional[str] = None # Gemini API 키
+    gemini_api_key: str | None = None # Gemini API 키
     
     # Supabase
-    supabase_url: Optional[str] = None # Supabase URL
-    supabase_key: Optional[str] = None # Supabase API 키
+    supabase_url: str | None = None # Supabase URL
+    supabase_key: str | None = None # Supabase API 키
 
     class Config:
         env_file = ".env" # 환경 변수 파일

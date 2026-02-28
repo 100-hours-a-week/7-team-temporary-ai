@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 챗봇 테스트 (보고서 기반)</title>
+    <!-- Tailwind CSS (for quick styling) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Marked.js (for markdown rendering) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        .markdown-body {
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .markdown-body h1,
+        .markdown-body h2,
+        .markdown-body h3 {
+            font-weight: 600;
+            margin-top: 1em;
+            margin-bottom: 0.5em;
+        }
+
+        .markdown-body p {
+            margin-bottom: 0.5em;
+        }
+
+        .markdown-body ul {
+            list-style-type: disc;
+            padding-left: 1.5em;
+            margin-bottom: 0.5em;
+        }
+
+        .markdown-body strong {
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="w-full max-w-3xl bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden flex flex-col"
+        style="height: 90vh;">
+        <!-- Header -->
+        <div class="bg-blue-600 text-white px-6 py-4 flex justify-between items-center shadow-md">
+            <div>
+                <h1 class="text-xl font-bold">MOLIP AI 챗봇 🧪</h1>
+                <p class="text-sm text-blue-100" id="header-info">연결 준비 중...</p>
+            </div>
+        </div>
+
+        <!-- Chat Flow (Scrollable) -->
+        <div id="chat-box" class="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-50">
+            <!-- Messages will be injected here -->
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loading" class="hidden text-center text-gray-400 text-sm py-2">
+            AI가 응답을 생성하고 있습니다...
+        </div>
+
+        <!-- Input Area -->
+        <div class="border-t border-gray-200 bg-white p-4 pb-6 flex gap-2">
+            <input type="text" id="user-input"
+                class="flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="질문을 입력하세요... (Enter 키로 전송)" disabled>
+            <button id="send-btn"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors shadow-md disabled:bg-gray-400"
+                disabled>전송</button>
+        </div>
+    </div>
+
+    <script>
+        // Configuration from FastAPI URL path
+        const pathParts = window.location.pathname.split('/');
+        const reportIdIndex = pathParts.indexOf('reports') + 1;
+        const reportId = parseInt(pathParts[reportIdIndex]);
+        const userId = 999999;
+
+        // States
+        let chatHistory = [];
+        const chatBox = document.getElementById('chat-box');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const headerInfo = document.getElementById('header-info');
+        const loadingEl = document.getElementById('loading');
+
+        // UI Utilities
+        function appendMessage(role, content, messageId = null) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = role === 'USER' ? 'flex justify-end' : 'flex justify-start';
+            if (messageId) msgDiv.id = `msg-${messageId}`;
+
+            const bubbleDiv = document.createElement('div');
+            if (role === 'USER') {
+                bubbleDiv.className = 'max-w-[75%] bg-blue-600 text-white rounded-2xl p-4 shadow-sm';
+                bubbleDiv.textContent = content;
+            } else if (role === 'SYSTEM') {
+                bubbleDiv.className = 'w-full bg-white border border-gray-200 text-gray-800 rounded-xl p-5 shadow-sm markdown-body';
+                bubbleDiv.innerHTML = marked.parse(content);
+            } else {
+                // AI
+                bubbleDiv.className = 'max-w-[85%] bg-white border border-gray-200 text-gray-800 rounded-2xl p-4 shadow-sm markdown-body';
+                bubbleDiv.innerHTML = marked.parse(content);
+            }
+
+            msgDiv.appendChild(bubbleDiv);
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return msgDiv;
+        }
+
+        function updateAiMessage(messageId, markdownChunk) {
+            const msgDiv = document.getElementById(`msg-${messageId}`);
+            if (msgDiv) {
+                const bubbleDiv = msgDiv.querySelector('.markdown-body');
+                bubbleDiv.innerHTML = marked.parse(markdownChunk);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+        }
+
+        // Input Control
+        function setInputState(enabled) {
+            userInput.disabled = !enabled;
+            sendBtn.disabled = !enabled;
+            if (enabled) userInput.focus();
+            else {
+                loadingEl.classList.remove('hidden');
+            }
+        }
+
+        function hideLoading() {
+            loadingEl.classList.add('hidden');
+        }
+
+        // 1. Initialize logic: Fetch weekly report
+        async function initChat() {
+            // 백엔드가 제공해주는 레포트라고 가정 (DB에 저장된 content를 하드코딩)
+            const reportContent = `# 📅 주간 리포트 (2026-01-25 ~ 2026-02-20)
+
+지난 4주간의 기록을 바탕으로 분석한 주간 레포트입니다. 사용자님은 바쁜 일정 속에서도 전공 역량 강화와 자기계발 사이의 균형을 잡기 위해 꾸준히 노력해 오셨습니다.
+
+---
+
+### 1. 이번 주 요약 (Weekly Summary)
+최근 1주일(2/15~2/20)은 이전 주들에 비해 **실행력이 매우 높았던 시기**였습니다. 특히 2월 중순(2/9~2/14)에 발생했던 일부 미이행 과제(TODO)들을 이번 주에는 대부분 완료(DONE)로 전환하며 밀린 일정들을 성공적으로 소화해냈습니다. 
+
+졸업 과제의 핵심인 백엔드 개발과 알고리즘 최적화에 집중하면서도, 기술 블로그 작성과 헬스장 방문 등 루틴을 지키려는 의지가 돋보였습니다. 전반적으로 'AFTERNOON'과 'NIGHT' 시간대의 집중력을 활용해 복잡한 개발 업무를 해결하는 경향을 보였습니다.
+
+---
+
+### 2. 주요 성과 및 일정 분석 (Key Achievements & Schedule Analysis)
+
+#### **🚀 주요 성과**
+*   **졸업 과제 고도화:** '추천 알고리즘 성능 최적화'와 '졸작 백엔드 핵심 API 개발'을 4주 내내 최우선 순위로 두고 진행하셨습니다. 특히 2월 16일부터 18일까지 집중적인 최적화 작업을 통해 프로젝트의 완성도를 높였습니다.
+*   **기술적 성장 기록:** 매주 '기술 블로그 작성(주간 회고)'을 잊지 않고 수행하며, 단순 개발에 그치지 않고 본인의 지식을 정리하는 습관을 유지하고 있습니다.
+*   **철저한 테스트 문화:** '테스트 코드 작성 방어'와 '프론트엔드 API 연동 테스트'를 일정에 배치하여 시스템의 안정성을 확보하려는 노력이 확인됩니다.
+
+#### **📅 일정 패턴 및 변경 이력 분석**
+*   **운동 시간의 고착화:** 헬스장(웨이트 트레이닝) 일정이 거의 매번 **19:30에서 20:00로 변경(MOVE_TIME)**되는 패턴이 관찰됩니다. 이는 저녁 식사 후 휴식 시간이 계획보다 조금 더 필요하거나, 이동 시간에 변수가 있음을 시사합니다.
+*   **집중 시간대 활용:** 주로 'NIGHT' 혹은 'AFTERNOON'에 높은 집중력을 발휘하고 있으며, 실제로 어려운 알고리즘 문제나 논문 수정 작업이 이 시간대에 집중되어 있습니다.
+*   **유연한 위기 대처:** 1월 30일의 급작스러운 면접 제안에 따른 포트폴리오 수정, 2월 7일의 웹소켓 서버 에러 긴급 복구 등 예기치 못한 상황에서도 기존 일정을 조정하며 문제를 해결하는 뛰어난 적응력을 보여주셨습니다.
+
+---
+
+### 3. 다음 주 스케줄링 조언 (Suggestions for Next Week)
+
+*   **운동 시작 시간 현실화:** 헬스장 일정을 처음부터 **20:00**로 설정해 보세요. 4주간의 데이터가 보여주듯, 19:30은 사용자님께 다소 촉박한 시간일 수 있습니다. 처음부터 현실적인 시간을 계획하면 '일정 변경'에 따른 심리적 부담을 줄일 수 있습니다.
+*   **오전 시간대의 'Warm-up' 활용:** 현재 오전 9시부터 11시 사이에 '졸작 백엔드 개발'이나 '알고리즘' 같은 고강도 업무가 배치되어 있습니다. 만약 오전 집중도가 낮게 느껴진다면, 이 시간에는 상대적으로 가벼운 'AI 트렌드 리서치'나 '메일 확인' 등을 배치하고 고강도 업무를 오후 집중 시간대로 옮기는 전략도 고려해 보세요.
+*   **여유 시간(Buffer) 확보:** 2월 6일의 번개 모임이나 2월 7일의 긴급 서버 복구 사례처럼 예상치 못한 이벤트는 언제든 발생할 수 있습니다. 하루 중 1시간 정도는 '예비 시간'으로 비워두어, 돌발 상황이 발생해도 전체 스케줄이 뒤로 밀리지 않도록 관리해 보시길 권장합니다.
+
+사용자님은 이미 충분히 훌륭한 몰입도를 보여주고 계십니다. 다음 주에도 계획하신 목표들을 하나씩 달성해 나가는 즐거움을 누리시길 응원합니다! 🌟`;
+
+            chatHistory.push({ messageId: 1, senderType: 'SYSTEM', messageType: 'TEXT', content: `[주간 레포트 컨텍스트]\n\n${reportContent}` });
+            headerInfo.innerText = `Report ID: ${reportId} 기반 대화 중 💬`;
+            appendMessage('SYSTEM', `📊 **주간 레포트 데이터를 불러왔습니다.**\n\n---\n${reportContent}`);
+
+            setInputState(true);
+        }
+
+        // 2. Chat logic: Send Message to POST /respond, then listen to SSE
+        async function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            // Add to UI and History
+            userInput.value = '';
+            setInputState(false);
+
+            // messageId generation simple mock 
+            const userMsgId = Date.now();
+            const aiMsgId = userMsgId + 1;
+
+            chatHistory.push({ messageId: userMsgId, senderType: 'USER', messageType: 'TEXT', content: text });
+            appendMessage('USER', text);
+
+            try {
+                // STEP A: POST /respond
+                const postResp = await fetch(`/ai/v2/reports/${reportId}/chat/respond`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: userId,
+                        messageId: aiMsgId,
+                        messages: chatHistory
+                    })
+                });
+
+                if (!postResp.ok) throw new Error('Failed to start chat session');
+
+                // Generate empty bubble for AI
+                const aiElem = appendMessage('AI', '...', aiMsgId);
+                let fullAiContent = "";
+                let sseStarted = false;
+
+                // STEP B: GET /stream via EventSource
+                const eventSource = new EventSource(`/ai/v2/reports/${reportId}/chat/respond/${aiMsgId}/stream`);
+
+                eventSource.addEventListener('start', (e) => {
+                    hideLoading();
+                    sseStarted = true;
+                    updateAiMessage(aiMsgId, "");
+                });
+
+                eventSource.addEventListener('chunk', (e) => {
+                    const data = JSON.parse(e.data);
+                    fullAiContent += data.delta;
+                    updateAiMessage(aiMsgId, fullAiContent);
+                });
+
+                eventSource.addEventListener('complete', (e) => {
+                    const data = JSON.parse(e.data);
+                    console.log('Stream complete:', data.status);
+                    eventSource.close();
+                    chatHistory.push({ messageId: aiMsgId, senderType: 'AI', messageType: 'TEXT', content: fullAiContent });
+                    setInputState(true);
+                });
+
+                eventSource.addEventListener('error', (e) => {
+                    // Occurs when manually yielded error event or network fail
+                    console.error("SSE Error:", e);
+                    // If the stream wasn't properly ended, the browser tries to reconnect. We must manually close it.
+                    eventSource.close();
+                    let errMsg = "스트리밍 오류가 발생했습니다.";
+
+                    // e.data might be present if we yielded an error event payload
+                    if (e.data) {
+                        try {
+                            const parsed = JSON.parse(e.data);
+                            if (parsed.message) errMsg = `오류: ${parsed.message}`;
+                        } catch (jsonE) { }
+                    }
+
+                    fullAiContent += `\n\n> ⚠️ **${errMsg}**`;
+                    updateAiMessage(aiMsgId, fullAiContent);
+                    setInputState(true);
+                });
+
+            } catch (e) {
+                hideLoading();
+                appendMessage('SYSTEM', `❌ 요청 실패: ${e.message}`);
+                setInputState(true);
+            }
+        }
+
+        sendBtn.addEventListener('click', sendMessage);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        // Start
+        window.onload = initChat;
+
+    </script>
+</body>
+
+</html>
