@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-02-28
+
+### 챗봇 시스템(ChatService) MCP(Model Context Protocol) 도구 완벽 연동
+
+**목적**: 사용자가 리포트 화면에서 챗봇에게 주간 달성 또는 과거 일정 관해 질문했을 때, AI가 스스로 도구를 호출(Function Calling)하여 DB의 과거 데이터를 읽어오고 정확한 답변을 제공할 수 있도록 지능형 에이전트로 업그레이드함.
+
+#### 주요 변경 사항
+
+1. **FastMCP 도구 바인딩 (`app/services/report/chat_service.py`)**
+   - **Tool Injection**: Gemini API(`generate_content_stream`) 호출 시 사전에 만들어둔 FastMCP 서버의 특정 엔드포인트 도구들(`search_schedules_by_date`, `search_tasks_by_similarity`)을 주입.
+   - **Function Calling Loop**: 챗봇이 일반 텍스트가 아닌 `function_calls`를 반환할 때 이를 감지하여, 서버 내부 함수를 실행하고 그 결과(`function_responses`)를 다시 LLM에 전달하는 다중 턴 구조 완성.
+
+2. **사용자 컨텍스트(User Context) 동적 매핑**
+   - **Report ID 기반 역추적 (`app/db/repositories/report_repository.py`)**: 클라이언트가 챗봇 호출 시 `user_id` 대신 `reportId`만 전송하더라도, 백엔드에서 `fetch_user_id_by_report_id` 를 통해 작성자 ID를 조회하여 보안 토큰 없이도 안전하게 사용자의 개인화된 MCP 도구를 실행할 수 있도록 보강.
+
+3. **장애 대응 및 재시도 로직 강화 (Fallback Strategy)**
+   - **503 무한 재시도**: Gemini 외부 API 장애(503, 429 에러 등) 발생 시 스트림이 끊어지지 않도록, 지수 백오프 기반의 자동 재시도 로직 구현.
+   - **모델 강등(Model Downgrade)**: 3회 이상 실패 시 `gemini-2.5-flash-lite`에서 `gemini-2.5-flash` 모델로 자동 Fallback 하여 안정성 극대화.
+
+4. **단위 테스트 및 에러 처리 규격화 (`test_chat_service.py`, `test_mcp_server.py`)**
+   - 파라미터 불일치(`embedding_vector` → `query`, `plan_date` → `planner_date`)로 깨졌던 기존 MCP 단위 테스트 전면 수정 및 Mock(AsyncMock) 보강.
+   - `MockChunk`의 `AttributeError` 같은 세부 예외를 테스트가 온벽히 커버하도록 재작성하여 CI/CD 안정성 확보.
+
 ## 2026-02-26
 
 ### 의미 체계 기반(Semantic) 스케줄 검색 MCP 도구 및 테스트 클라이언트 구현

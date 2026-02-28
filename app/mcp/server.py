@@ -100,24 +100,35 @@ async def search_schedules_by_date(
     except Exception as e:
         return f"데이터베이스 조회 중 오류가 발생했습니다: {str(e)}"
 
+from app.llm.gemini_client import get_gemini_client
+
 @mcp.tool()
 @logfire.instrument("mcp.tool.search_tasks_by_similarity")
 async def search_tasks_by_similarity(
     user_id: int, 
-    embedding_vector: List[float], 
+    query: str,
     top_k: int = 5
 ) -> str:
     """
-    임베딩 벡터를 사용하여 사용자의 과거 태스크 중 의미적으로 가장 유사한 기록을 검색합니다.
+    사용자의 과거 태스크 중 입력된 텍스트(query)와 의미적으로 가장 유사한 기록을 검색합니다.
     
     Args:
         user_id: 조회할 사용자의 고유 ID
-        embedding_vector: 쿼리 문장을 임베딩한 768차원 Float 배열
+        query: 검색할 자연어 문장 (예: "최근에 했던 운동", "스트레스 받았던 일")
         top_k: 반환할 가장 유사한 태스크 개수 (기본값: 5)
     """
     client = get_supabase_client()
     
     try:
+        # LLM을 호출하여 query를 임베딩 벡터로 변환
+        gemini_client = get_gemini_client()
+        embed_response = await gemini_client.client.aio.models.embed_content(
+            model="gemini-embedding-001",
+            contents=query,
+            config={"output_dimensionality": 768}
+        )
+        embedding_vector = embed_response.embeddings[0].values
+
         # Supabase RPC(Stored Procedure)를 호출하여 DB 내부(pgvector)에서 코사인 유사도 연산 및 JOIN 수행
         # 파라미터는 p_user_id, query_embedding, match_count
         response = client.rpc(

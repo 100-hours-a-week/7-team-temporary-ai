@@ -61,6 +61,27 @@ class ReportRepository:
             logging.error(f"[ReportRepository] Failed to upsert weekly report {report_id}: {e}")
             return False
 
+    async def fetch_user_id_by_report_id(self, report_id: int) -> int | None:
+        """
+        특정 report_id를 가진 레포트의 user_id를 조회합니다.
+        """
+        try:
+            query = (
+                self.client.table("weekly_reports")
+                .select("user_id")
+                .eq("report_id", report_id)
+                .limit(1)
+            )
+            response = await asyncio.to_thread(query.execute)
+            
+            if response.data and len(response.data) > 0:
+                return response.data[0].get("user_id")
+            return None
+        except Exception as e:
+            import logging
+            logging.error(f"[ReportRepository] Failed to fetch user_id for report_id {report_id}: {e}")
+            return None
+
     async def fetch_reports_by_targets(self, targets: list[Any]) -> list[dict[str, Any]]:
         """
         주어진 WeeklyReportTarget 리스트의 report_id들을 기반으로 레포트를 조회합니다.

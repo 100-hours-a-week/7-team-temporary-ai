@@ -44,7 +44,7 @@ class ChatService:
         queue = asyncio.Queue()
         
         # 백그라운드에서 Gemini API를 호출하고 큐에 이벤트를 넣는 태스크 시작
-        task = asyncio.create_task(self._generate_task(request.message_id, request.messages))
+        task = asyncio.create_task(self._generate_task(report_id, request.message_id, request.messages))
         
         _active_sessions[request.message_id] = {
             "queue": queue,
@@ -57,7 +57,7 @@ class ChatService:
             data=ChatRespondAckData(messageId=request.message_id)
         )
 
-    async def _generate_task(self, message_id: int, messages: list):
+    async def _generate_task(self, report_id: int, message_id: int, messages: list):
         """본격적인 API 호출 및 Queue 적재 로직 (백그라운드 실행)"""
         session = _active_sessions.get(message_id)
         if not session:
@@ -96,31 +96,119 @@ class ChatService:
             # --- Retry 로직 ---
             max_retries = 4
             retry_count = 0
-            current_model_name = "gemini-2.5-flash-lite"
-            fallback_model_name = "gemini-2.5-flash"
+            current_model_name = "gemini-2.5-flash"
+            fallback_model_name = "gemini-3-flash-preview"
 
             response_stream = None
             is_success = False
             last_error = None
 
+            # User ID 조회 추가 (report_id 기반)
+            from app.db.repositories.report_repository import ReportRepository
+            repo = ReportRepository()
+            user_id = await repo.fetch_user_id_by_report_id(report_id)
+            if not user_id:
+                raise ValueError(f"Valid user_id not found for report {report_id}")
+
+            from app.mcp.server import search_schedules_by_date, search_tasks_by_similarity
+            # Gemini에 제공할 도구 목록
+            tools = [search_schedules_by_date, search_tasks_by_similarity]
+
             while retry_count < max_retries and not is_success:
                 try:
                     logger.info(f"Chat stream attempt {retry_count+1} with model {current_model_name} for message_id: {message_id}")
                     
-                    # google.genai 에서는 generate_content_stream 을 비동기로 제공(`client.aio`)
-                    response_stream = await self.gemini.client.aio.models.generate_content_stream(
-                        model=current_model_name,
-                        contents=gemini_contents,
-                        config=types.GenerateContentConfig(
-                            temperature=0.7,
-                            system_instruction=CHAT_SYSTEM_PROMPT,
+                    # 모델이 user_id를 바로 알 수 있도록 시스템 프롬프트에 주입
+                    dynamic_system_prompt = CHAT_SYSTEM_PROMPT + f"\n\n[System Data]\n현재 대화 중인 사용자의 userId는 {user_id} 입니다. 도구를 호출할 때 이 userId를 반드시 사용하세요."
+                    
+                    # Tool 호출 처리를 위한 반복 루프 (최대 5회)
+                    max_tool_loops = 5
+                    loop_count = 0
+                    seq = 1
+                    
+                    while loop_count < max_tool_loops:
+                        loop_count += 1
+                        
+                        logger.info(f"Loop {loop_count} starting Gemini Model stream")
+                        response_stream = await self.gemini.client.aio.models.generate_content_stream(
+                            model=current_model_name,
+                            contents=gemini_contents,
+                            config=types.GenerateContentConfig(
+                                temperature=0.7,
+                                system_instruction=dynamic_system_prompt,
+                                tools=tools
+                            )
                         )
-                    )
-                    is_success = True
-                    break # 성공 시 루프 탈출
-                except APIError as e:
+                        
+                        tool_calls = []
+                        async for chunk in response_stream:
+                            if chunk.function_calls:
+                                tool_calls.extend(chunk.function_calls)
+                            elif chunk.text:
+                                is_success = True
+                                chunk_event = ChatStreamChunkEvent(
+                                    messageId=message_id,
+                                    delta=chunk.text,
+                                    sequence=seq
+                                )
+                                await queue.put(("chunk", chunk_event.model_dump(by_alias=True)))
+                                seq += 1
+                        
+                        if not tool_calls:
+                            # 툴 호출이 없었고 텍스트가 스트리밍되었다면 완료
+                            is_success = True
+                            break
+                        
+                        # 도구를 호출해야 하는 경우 
+                        function_responses = []
+                        for call in tool_calls:
+                            tool_name = call.name
+                            args = call.args if call.args else {}
+                            
+                            # 만약 LLM이 user_id를 주지 않았다면 강제 주입
+                            if "user_id" not in args:
+                                args["user_id"] = user_id
+                                
+                            logger.info(f"Executing tool {tool_name} with args: {args}")
+                            try:
+                                if tool_name == "search_schedules_by_date":
+                                    result = await search_schedules_by_date(**args)
+                                elif tool_name == "search_tasks_by_similarity":
+                                    result = await search_tasks_by_similarity(**args)
+                                else:
+                                    result = f"Unknown tool: {tool_name}"
+                            except Exception as e:
+                                result = f"Error executing tool {tool_name}: {e}"
+                                logger.error(result)
+                            
+                            function_responses.append(
+                                types.Part.from_function_response(
+                                    name=tool_name,
+                                    response={"result": result}
+                                )
+                            )
+                            
+                        # LLM의 함수 호출과 실행 결과를 Messages 목록에 추가
+                        gemini_contents.append(
+                            types.Content(role="model", parts=[types.Part.from_function_call(name=c.name, args=c.args) for c in tool_calls])
+                        )
+                        gemini_contents.append(
+                            types.Content(role="user", parts=function_responses)
+                        )
+                        
+                        # 모델에 다시 스트리밍을 요청하기 위해 루프 반복
+                    
+                    if loop_count >= max_tool_loops and not is_success:
+                         logger.warning("Max tool execution depth reached.")
+                         raise Exception("Max tool execution depth reached.")
+                         
+                    break # 성공 시 외부 재시도 루프 탈출
+                except Exception as e:
                     last_error = e
                     status_code = getattr(e, "code", 500)
+                    if status_code == 500 and "503" in str(e):
+                        status_code = 503
+                        
                     logger.warning(f"Gemini streaming error ({status_code}): {e}")
                     
                     if status_code in (503, 500, 429):
@@ -136,12 +224,6 @@ class ChatService:
                     else:
                         # 재시도 불가 에러(예: 400 Bad Request, 403 Forbidden)
                         break
-                except asyncio.CancelledError:
-                    raise
-                except Exception as e:
-                    last_error = e
-                    logger.error(f"Unknown error in streaming: {e}")
-                    break
 
             if not is_success:
                 err_event = ChatStreamErrorEvent(
@@ -152,18 +234,6 @@ class ChatService:
                 await queue.put(("error", err_event.model_dump(by_alias=True)))
                 await queue.put(None) # 스트림 종료 신호
                 return
-
-            # --- 스트림 큐 전송 시작 ---
-            seq = 1
-            async for chunk in response_stream:
-                if chunk.text:
-                    chunk_event = ChatStreamChunkEvent(
-                        messageId=message_id,
-                        delta=chunk.text,
-                        sequence=seq
-                    )
-                    await queue.put(("chunk", chunk_event.model_dump(by_alias=True)))
-                    seq += 1
 
             # Event: Complete
             complete_event = ChatStreamCompleteEvent(
