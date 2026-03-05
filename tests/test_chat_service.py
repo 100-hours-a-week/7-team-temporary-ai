@@ -130,9 +130,9 @@ async def test_generate_task_fallback_logic(chat_service, sample_request):
     # 총 4번 호출되었는지 검증
     assert mock_generate.call_count == 4
     
-    # 4번째 호출의 모델 인자가 gemini-2.5-flash 인지 검증
+    # 4번째 호출의 모델 인자가 gemini-3-flash-preview (fallback) 인지 검증
     last_call_kwargs = mock_generate.call_args.kwargs
-    assert last_call_kwargs["model"] == "gemini-2.5-flash"
+    assert last_call_kwargs["model"] == "gemini-3-flash-preview"
     
     # Queue 이벤트 수집하여 정상 chunk가 들어갔는지 확인
     events = []
