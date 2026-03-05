@@ -2,7 +2,14 @@
 
 MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 날짜별로 기록한 문서입니다. `CHANGELOG.md`와 연계하여 참조하시기 바랍니다.
 
----
+
+## 2026-03-05
+
+### 1. planner_records 적재 시 필드 누락으로 인한 500 에러
+- **현상**: 백엔드에서 플래너 기록을 DB에 저장할 때, `start_arrange`, `plan_date`, `planner_date` 등 일부 필드가 비어있을 경우 `NOT NULL constraint violation` 에러와 함께 데이터 저장이 실패함.
+- **원인**: 초기 설계 시 해당 필드들이 필수값(`NOT NULL`)으로 설정되어 있었으나, 실제 운영 환경에서는 분석 결과에 따라 해당 데이터가 생성되지 않는 케이스가 존재함.
+- **해결**: **Schema Constraint Relaxation**.
+  - `planner_records` 테이블의 해당 컬럼들에 대해 `NOT NULL` 제약 조건을 해제(`DROP NOT NULL`)하는 마이그레이션을 수행하고, 문서(`DB_SCHEMA_AND_API.md`)를 최신화하여 백엔드 적재 로직의 예외 상황 대응력을 높임.
 
 ## 2026-02-28
 

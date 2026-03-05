@@ -2,7 +2,18 @@
 
 날짜별 개발 진행 상황을 기록합니다.
 
----
+## 2026-03-05
+
+### planner_records 테이블 컬럼 제약 조건 완화 (NULL 허용)
+
+**목적**: 백엔드에서 특정 필수 데이터가 누락된 상태로 플래너 기록을 적재할 때 발생하는 DB 제약 조건 오류를 해결하여 시스템 유연성을 확보함.
+ 
+#### 주요 변경 사항
+ 
+1. **DB 스키마 변경 (`docs/DB_SCHEMA_AND_API.md`)**
+   - `planner_records` 테이블의 `start_arrange` (배치 시작 시각) 및 `planner_date` (플래너 날짜) 컬럼의 `NOT NULL` 제약 조건을 제거하고 NULL 허용으로 업데이트.
+2. **SQL 마이그레이션 가이드 제공**
+   - 운영 중인 DB에 반영할 수 있는 `ALTER TABLE ... DROP NOT NULL` 쿼리 작성 및 문서화 (`start_arrange`, `plan_date`, `planner_date` 대상).
 
 ## 2026-02-28
 
