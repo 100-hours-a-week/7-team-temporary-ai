@@ -163,7 +163,7 @@ CREATE TABLE planner_records (
     record_type VARCHAR(20) NOT NULL,    -- 'AI_DRAFT' | 'USER_FINAL'
 
     -- 실행 메타데이터
-    start_arrange VARCHAR(5) NOT NULL,   -- 배치 시작 시각 "HH:MM"
+    start_arrange VARCHAR(5),            -- 배치 시작 시각 "HH:MM" (NULL 허용)
     day_end_time VARCHAR(5) NOT NULL,    -- 하루 종료 시각 "HH:MM"
     focus_time_zone VARCHAR(10) NOT NULL, -- MORNING|AFTERNOON|EVENING|NIGHT
 
@@ -171,8 +171,8 @@ CREATE TABLE planner_records (
     user_age INT,                        -- 나이
     user_gender VARCHAR(10),             -- 성별 ('MALE', 'FEMALE', 'OTHER')
 
-    -- [NEW: 26.02.26] 데일리 플래너 날짜 관리용 (트리거로 최초 생성일 자동 상속됨)
-    planner_date DATE NOT NULL,
+    -- [NEW: 26.02.26] 데일리 플래너 날짜 관리용 (트리거로 최초 생성일 자동 상속됨, NULL 허용)
+    planner_date DATE,
 
     -- 결과 요약
     total_tasks INT NOT NULL,            -- 전체 FLEX 작업 수
