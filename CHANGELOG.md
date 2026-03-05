@@ -15,6 +15,21 @@
 2. **SQL 마이그레이션 가이드 제공**
    - 운영 중인 DB에 반영할 수 있는 `ALTER TABLE ... DROP NOT NULL` 쿼리 작성 및 문서화 (`start_arrange`, `plan_date`, `planner_date` 대상).
 
+### 챗봇 어절 단위 스트리밍 구현
+
+**목적**: 챗봇 응답 시 Gemini API가 제공하는 큰 청크 단위를 그대로 출력하는 대신, 서버에서 어절(공백) 단위로 쪼개고 지연 시간을 두어 전송함으로써 사용자에게 더 부드러운 "타이핑" 애니메이션 경험을 제공함.
+
+#### 주요 변경 사항
+
+1. **서버 사이드 어절 분할 및 지연 제어 (`app/services/report/chat_service.py`)**
+   - **Tokenization**: Gemini API로부터 받은 각 텍스트 청크를 공백(` `) 기준으로 분리.
+   - **Artificial Delay**: 분리된 각 어절 사이에 `0.05초` 의 비동기 지연(`asyncio.sleep`)을 삽입하여 톡톡 끊어지며 생성되는 시각적 효과 구현.
+   - **Trailing Space Preservation**: 어절 분리 시 유실될 수 있는 공백을 다시 복원하여 문장이 올바르게 연결되도록 처리.
+
+2. **단위 테스트 수립 및 정합성 검증 (`tests/test_chat_service.py`)**
+   - 신규 구현된 어절 분할 로직이 띄어쓰기와 문장 부호를 정확히 보존하는지 검증하는 전용 테스트 케이스 성공.
+   - 모델 Fallback 로직 검증 시 기대 모델명이 실제 동작과 불일치하여 발생하던 기존 테스트(`test_generate_task_fallback_logic`)를 실제 구현 스펙(`gemini-3-flash-preview`)에 맞춰 보정.
+
 ## 2026-02-28
 
 ### 챗봇 시스템(ChatService) MCP(Model Context Protocol) 도구 완벽 연동

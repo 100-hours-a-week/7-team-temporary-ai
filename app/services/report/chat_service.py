@@ -146,13 +146,23 @@ class ChatService:
                                 tool_calls.extend(chunk.function_calls)
                             elif chunk.text:
                                 is_success = True
-                                chunk_event = ChatStreamChunkEvent(
-                                    messageId=message_id,
-                                    delta=chunk.text,
-                                    sequence=seq
-                                )
-                                await queue.put(("chunk", chunk_event.model_dump(by_alias=True)))
-                                seq += 1
+                                # Gemini의 chunk를 어절(공백) 단위로 쪼개서 지연 전송
+                                words = chunk.text.split(' ')
+                                for i, word in enumerate(words):
+                                    # 공백을 유지하기 위해 마지막 단어가 아니면 다시 붙여줌
+                                    delta = word + (' ' if i < len(words) - 1 else '')
+                                    if not delta:
+                                        continue
+                                        
+                                    chunk_event = ChatStreamChunkEvent(
+                                        messageId=message_id,
+                                        delta=delta,
+                                        sequence=seq
+                                    )
+                                    await queue.put(("chunk", chunk_event.model_dump(by_alias=True)))
+                                    seq += 1
+                                    # 어절 단위로 0.05초 지연 (체감상 톡톡 끊기는 느낌)
+                                    await asyncio.sleep(0.05)
                         
                         if not tool_calls:
                             # 툴 호출이 없었고 텍스트가 스트리밍되었다면 완료
