@@ -197,5 +197,39 @@ MOLIP AI는 Supabase(PostgreSQL)와 연동하여 AI가 생성한 플래너 초�
 # DB 저장 재현 스크립트 실행
 python tests_local/reproduce_db_save.py
 ```
+
+
+---
+
+## RunPod 관리 (GPU Server)
+
+MOLIP AI 서버는 고성능 연산이 필요한 경우 RunPod GPU 인스턴스를 활용합니다. `runpod/` 디렉토리에 포함된 스크립트를 통해 인스턴스를 제어할 수 있습니다.
+
+### 사전 설정
+
+1. **패키지 설치**: `pip install -r requirements.txt`
+2. **환경 변수 설정**: `.env` 파일에 `RUNPOD_API_KEY`와 `RUNPOD_POD_ID`를 설정합니다.
+
+### 1. Pod 시작 (Resume)
+
+중지된 Pod을 다시 시작합니다.
+
+> **Note**: RunPod의 유휴 자원 상황에 따라 시작이 실패할 수 있습니다(예: `Error starting pod: There are not enough free GPUs on the host machine to start this pod.`). 이 경우 **성공할 때까지 반복해서 시도**해야 합니다.
+
+```bash
+# 기본 실행 (.env 설정 사용)
+python runpod/start.py
 ```
 
+### 2. Pod 중지 (Stop)
+
+비용 절감을 위해 사용하지 않을 때는 Pod을 중지합니다.
+
+```bash
+# 기본 실행 (.env 설정 사용)
+python runpod/stop.py
+```
+
+### 3. Pod ID 확인
+
+[RunPod Console](https://www.runpod.io/console/pods)의 'My Pods' 섹션에서 Pod ID를 확인할 수 있습니다.
