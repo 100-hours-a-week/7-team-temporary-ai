@@ -18,14 +18,20 @@ async def generate_batch_reports(request: WeeklyReportGenerateRequest) -> None:
     """
     logger.info(f"Starting batch report generation for {len(request.users)} users. Base Date: {request.base_date}")
     
-    # 각 사용자에 대한 처리 작업을 생성 (병렬 처리 가능하나, 우선 순차/제한적 병렬로 진행)
+    semaphore = asyncio.Semaphore(10)  # 한 번에 최대 10개까지만 동시 실행 허용
+
+    async def _bounded_generate(user_target):
+        async with semaphore:
+            return await _generate_single_report(
+                user_id=user_target.user_id,
+                report_id=user_target.report_id,
+                base_date=request.base_date
+            )
+
+    # 각 사용자에 대한 처리 작업을 생성 (세마포어를 통해 동시 실행 수 제한)
     tasks = []
     for user_target in request.users:
-        tasks.append(_generate_single_report(
-            user_id=user_target.user_id,
-            report_id=user_target.report_id,
-            base_date=request.base_date
-        ))
+        tasks.append(_bounded_generate(user_target))
         
     results = await asyncio.gather(*tasks, return_exceptions=True)
     
