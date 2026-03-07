@@ -15,10 +15,11 @@
 - **목적**: 외부 서비스 연결 상태 점검 (Health Check)
 - **주요 기능**:
   - **Gemini API**: 단순 모델 목록 조회 등을 통해 API 키 유효성 및 연결 확인.
-  - **Supabase DB**: 인증 확인 및 간단한 Select 쿼리로 DB 연결 확인.
+  - **AWS RDS PostgreSQL**: `SELECT 1` 쿼리 실행 및 `pgvector` 확장팩 활성화 여부 확인.
 - **실행**:
 ```bash
-python -m unittest tests/test_connectivity.py
+# DATABASE_URL 환경변수가 설정되어 있어야 합니다.
+python3 -m unittest tests/test_connectivity.py
 ```
 
 ### 2. `test_logic_mock.py`
@@ -84,10 +85,10 @@ pytest tests/test_chat_service.py -v
 2. 브라우저에서 [http://localhost:8000/ai/v2/reports/9001/chat/test](http://localhost:8000/ai/v2/reports/9001/chat/test) 접속.
 
 ### 9. `test_mcp_server.py` (New)
-- **목적**: MCP(Model Context Context Protocol) 서버의 도구(`search_schedules_by_date`) 로직 검증
+- **목적**: MCP(Model Context Protocol) 서버의 도구(`search_schedules_by_date`, `search_tasks_by_similarity`) 로직 검증
 - **주요 기능**:
-  - `unittest.mock`을 사용하여 Supabase DB 호출을 가상(Mock)으로 대체.
-  - 날짜 범위 검색에 따른 결과 Markdown 생성 로직의 정확성 확인.
+  - `unittest.mock`을 사용하여 SQLAlchemy DB 호출을 가상(Mock)으로 대체.
+  - 날짜 범위 검색 및 벡터 유사도 검색 결과 Markdown 생성 로직의 정확성 확인.
   - 데이터 부재 시 혹은 DB 에러 발생 시 예외 처리 로직 점검.
 - **실행**:
 ```bash
@@ -97,8 +98,8 @@ python -m pytest tests/test_mcp_server.py
 ### 10. `test_embedding_sync.py` (New)
 - **목적**: 플래너 태스크 임베딩 스케줄러(`sync_task_embeddings`) 로직 검증
 - **주요 기능**:
-  - `unittest.mock`을 사용하여 Supabase DB 조회/업데이트 및 Gemini 임베딩 API 호출을 가상(Mock)으로 대체.
-  - 최근 8일간 데이터 없음, 업데이트 대상(Null) 태스크 없음, 정상 임베딩 업데이트의 3가지 케이스 커버넌스.
+  - `unittest.mock`을 사용하여 SQLAlchemy DB 조회/업데이트 및 Gemini 임베딩 API 호출을 가상(Mock)으로 대체.
+  - 최근 8일간 데이터 없음, 업데이트 대상(Null) 태스크 없음, 정상 임베딩 업데이트의 3가지 케이스 검증.
 - **실행**:
 ```bash
 python -m pytest tests/test_embedding_sync.py -v

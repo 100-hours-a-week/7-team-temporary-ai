@@ -2,6 +2,18 @@
 
 MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 날짜별로 기록한 문서입니다. `CHANGELOG.md`와 연계하여 참조하시기 바랍니다.
 
+## 2026-03-07
+
+### 1. 마이그레이션 후 테스트 실행 시 ModuleNotFoundError (pydantic-settings, greenlet 등)
+- **현상**: DB 전환 후 `test_connectivity.py` 실행 시 필수 라이브러리가 누락되었다는 에러 발생.
+- **원인**: 새롭게 도입된 SQLAlchemy와 asyncpg가 내부적으로 `greenlet`을 필요로 하며, 환경 설정 시 프로젝트 가상환경(`venv`)이 아닌 시스템 파이썬에 설치되어 발생한 경로 불일치 문제.
+- **해결**: 프로젝트 루트의 `./venv/bin/python3 -m pip install`을 통해 가상환경 내에 명시적으로 모든 의존성을 재설치하여 해결.
+
+### 2. AWS RDS 연결 시 SSL 관련 에러 (sslmode='require')
+- **현상**: `asyncpg` 드라이버를 통해 AWS RDS 연결 시 `connect() got an unexpected keyword argument 'sslmode'` 에러 발생.
+- **원인**: `asyncpg`는 연결 문자열에 `sslmode` 파라미터를 직접 쓰는 libpq 방식을 지원하지 않음.
+- **해결**: `app/db/session.py`에서 연결 문자열의 `sslmode`를 제거하고, 대신 SQLAlchemy `create_async_engine`의 `connect_args`를 통해 `{"ssl": True}`를 전달하도록 수정하여 보안 연결 확보.
+
 ## 2026-03-06
 
 ### 1. 대량 주간 레포트 생성 시 API Rate Limit 및 DB 과부하 우려

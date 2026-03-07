@@ -31,7 +31,10 @@ class Settings(BaseSettings):
     # API Keys
     gemini_api_key: str | None = None # Gemini API 키
     
-    # Supabase
+    # Database (Migration to AWS RDS)
+    database_url: str | None = None # AWS RDS PostgreSQL 접속 URL (asyncpg용)
+    
+    # Supabase (Legacy - to be removed)
     supabase_url: str | None = None # Supabase URL
     supabase_key: str | None = None # Supabase API 키
 

@@ -2,6 +2,77 @@
 
 날짜별 개발 진행 상황을 기록합니다.
 
+## 2026-03-07
+
+### Supabase에서 AWS RDS PostgreSQL로 데이터베이스 마이그레이션 및 인프라 완전 전환
+
+**목적**: 인프라 일원화 및 확장성 확보를 위해 기존 Supabase(Postgrest) 종속성을 완전히 제거하고, AWS RDS PostgreSQL(pgvector 활성) 기반의 자체 비동기 DB 엔진 환경으로 마이그레이션을 완료함.
+
+#### 주요 인프라 및 환경 변경 사항
+
+1. **환경 변수 전환 (`.env` & `app/core/config.py`)**
+   - **`DATABASE_URL` 도입**: 기존 `SUPABASE_URL`, `SUPABASE_KEY` 대신 SQLAlchemy/asyncpg 연결을 위한 표준 DSN 주소를 도입하여 `.env`에서 관리.
+   - **보안 강화**: `app/db/session.py` 내의 하드코딩된 패스워드 및 접속 주소를 제거하고, 환경 변수가 없을 경우 예외(`ValueError`)를 발생시키는 명시적 설정 구조로 전환.
+
+2. **의존성(Dependency) 업데이트 (`requirements.txt`)**
+   - **SQLAlchemy & asyncpg**: 비동기 PostgreSQL 연동을 위한 코어 라이브러리 추가.
+   - **psycopg2-binary**: 동기 작업 및 헬퍼 기능을 위한 드라이버 추가.
+   - **greenlet**: SQLAlchemy 비동기 기능 지원을 위한 필수 패키지 설치.
+
+#### 코드 레벨 세부 변경 사항 (Before/After 비교)
+
+1. **DB 엔진 및 세션 관리 (`app/db/session.py`)** [New]
+   - **핵심**: Supabase SDK 전용 클라이언트에서 SQLAlchemy 비동기 세션으로 전환.
+   - **Before**: `create_client(settings.supabase_url, settings.supabase_key)`
+   - **After**:
+     ```python
+     engine = create_async_engine(DATABASE_URL, connect_args={"ssl": True})
+     AsyncSessionLocal = async_sessionmaker(bind=engine, class_=AsyncSession)
+     ```
+
+2. **Report 레포지토리 (`app/db/repositories/report_repository.py`)**
+   - **Before (Supabase)**: `supabase.table("weekly_reports").select("*").eq("id", id).execute()`
+   - **After (SQLAlchemy)**:
+     ```python
+     query = text("SELECT * FROM weekly_reports WHERE id = :id")
+     result = await session.execute(query, {"id": id})
+     ```
+   - **Upsert 로직**: `ON CONFLICT (id) DO UPDATE` 절을 사용하여 데이터 정합성 강화.
+
+3. **Planner 레포지토리 (`app/db/repositories/planner_repository.py`)**
+   - **핵심**: 관계형 데이터 저장 시 상위 ID를 하위 태스크에 매핑하는 과정 최적화.
+   - **Before**: `supabase.table("planner_records").insert(data).execute()` (반환값에서 ID 추출)
+   - **After**:
+     ```python
+     query = text("INSERT INTO planner_records (...) VALUES (...) RETURNING id")
+     res = await session.execute(query, data)
+     planner_id = res.scalar() # 하위 태스크 저장 시 사용
+     ```
+
+4. **Personalization 레포지토리 (`app/db/repositories/personalization_repository.py`)**
+   - **Batch 처리**: 여러 사용자의 대량 데이터를 비동기 트랜잭션 내에서 일괄 처리하도록 개선.
+   - **변경점**: `supabase` 객체 대신 `AsyncSession`을 주입받아 처리함으로써 네트워크 왕복(Round-trip) 최소화.
+
+5. **임베딩 서비스 (`app/services/embedding_service.py`)**
+   - **벡터 처리**: `pgvector`가 인식하는 리스트 형식을 직접 SQL 매개변수로 바인딩.
+   - **Before**: `supabase.table("record_tasks").update({"combined_embedding_text": vector})...`
+   - **After**:
+     ```python
+     query = text("UPDATE record_tasks SET combined_embedding_text = :embedding WHERE id = :id")
+     await session.execute(query, {"embedding": embedding_vector, "id": task_id})
+     ```
+
+6. **MCP 서버 및 유사도 검색 (`app/mcp/server.py`)**
+   - **RPC 호출 방식 변경**: Supabase 내장 RPC 브리지를 통하지 않고, PostgreSQL 함수를 직접 `SELECT`로 호출.
+   - **변경 후**:
+     ```python
+     query = text("SELECT * FROM match_record_tasks(:user_id, :embedding::vector, :top_k)")
+     result = await session.execute(query, params)
+     ```
+
+#### 테스트 및 확인
+- **`tests/test_connectivity.py`**: 비동기 테스트 케이스(`async def test_postgresql_connection`)로 전면 개편하여 `SELECT 1` 및 `pgvector` 확장을 직접 검증하도록 수정.
+
 ## 2026-03-06
 
 ### 주간 레포트 생성 API (Batch) 동시성 제어 강화
