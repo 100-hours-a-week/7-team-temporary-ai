@@ -43,6 +43,24 @@ class PersonalizationErrorCode(str, Enum):
 
 def map_exception_to_error_code(e: Exception) -> PlannerErrorCode:
     """Exception을 PlannerErrorCode로 매핑"""
+    # google-genai 라이브러리 에러 대응
+    from google.genai import errors as genai_errors
+    if isinstance(e, genai_errors.ClientError):
+        error_str = str(e).upper()
+        if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+            return PlannerErrorCode.PLANNER_RESOURCE_EXHAUSTED
+        if "400" in error_str or "INVALID" in error_str:
+            return PlannerErrorCode.PLANNER_INVALID_ARGUMENT
+        if "404" in error_str:
+            return PlannerErrorCode.PLANNER_NOT_FOUND
+        if "503" in error_str or "UNAVAILABLE" in error_str:
+            return PlannerErrorCode.PLANNER_SERVICE_UNAVAILABLE
+        if "504" in error_str or "TIMEOUT" in error_str or "DEADLINE" in error_str:
+            return PlannerErrorCode.PLANNER_TIMEOUT
+        if "500" in error_str:
+            return PlannerErrorCode.PLANNER_SERVER_ERROR
+
+    # google-cloud-aiplatform / google-api-core 에러 대응
     if isinstance(e, google_exceptions.InvalidArgument):
         return PlannerErrorCode.PLANNER_INVALID_ARGUMENT
     elif isinstance(e, google_exceptions.FailedPrecondition):
