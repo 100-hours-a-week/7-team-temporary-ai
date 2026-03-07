@@ -2,14 +2,25 @@
 
 MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 날짜별로 기록한 문서입니다. `CHANGELOG.md`와 연계하여 참조하시기 바랍니다.
 
+## 2026-03-07
+
+### 1. Gemini API 429 RESOURCE_EXHAUSTED 에러 발생 시 중단 문제
+- **현상**: 특정 모델의 일일/분당 쿼터가 소진되면 `429 RESOURCE_EXHAUSTED` 에러가 발생하며 레포트 생성이 중단되거나 지연됨.
+- **원인**: 기존 로직은 429 에러 시에도 동일 모델로 재시도를 수행하여 불필요한 대기 시간이 발생함.
+- **해결**: **429 발생 시 즉시 티어 전환 및 에러 매핑 보완**.
+  - `google-genai` 라이브러리의 `ClientError`를 `PLANNER_RESOURCE_EXHAUSTED` 에러 코드로 정확히 매핑하도록 `app/models/planner/errors.py` 수정.
+  - `429` 감지 시 즉시 루프를 탈출하여 다음 티어 모델(`2.5-flash` 또는 `2.5-lite`)로 생성 요청을 넘기도록 로직 보완.
+  - 5xx 에러(일시적 서버 장애)에 대해서만 4회 재시도를 유지하여 안정성 확보.
+
+
 ## 2026-03-06
 
 ### 1. 대량 주간 레포트 생성 시 API Rate Limit 및 DB 과부하 우려
-- **현상**: `POST /ai/v2/reports/weekly` (배치 처리) API에 한 번에 수백~수천 명의 `users` 배열이 유입될 경우, `asyncio.gather(*tasks)`에 의해 순간적으로 모든 요청이 외부 LLM API(Gemini)와 DB로 폭주하여 `429 Too Many Requests` 및 DB 타임아웃이 발생할 수 있는 설계적 취약점 발견.
-- **원인**: 개별 오류에 대한 지수 백오프(Exponential Backoff) 재시도 로직은 있었으나, 최초 실행 시 병렬 처리 개수를 제한하는 스로틀링(Throttling) 로직이 부재함.
-- **해결**: **비동기 세마포어(Semaphore) 도입으로 동시성 제어**.
-  - `app/services/report/weekly_report_service.py` 내부 트래픽 제어 로직에 `asyncio.Semaphore(10)`을 적용.
-  - 이를 통해 1000개의 요청이 오더라도 한순간에 실행되는 최대 작업 수는 10개로 안전하게 유지됨. 하나가 완료되면 즉각 후속 작업을 실행해 처리 속도 저하를 최소화하면서 시스템 부하를 근본적으로 차단함.
+- **현상**: `POST /ai/v2/reports/weekly` (배치 처리) API에 한 번에 수백~수천 명의 `users` 배열이 유입될 경우, 순간적으로 모든 요청이 외부 LLM API(Gemini)와 DB로 폭주하여 `429 Too Many Requests` 및 DB 타임아웃이 발생할 수 있는 설계적 취약점 발견.
+- **원인**: 개별 오류에 대한 지수 백오프 기반 재시도 로직은 있었으나, 최초 실행 시 전체 처리 속도를 조절하는 스로틀링(Throttling) 로직이 부족함.
+- **해결**: **RPS(Requests Per Second) 기반 제어 로직 도입**.
+  - `app/services/report/weekly_report_service.py` 내부에서 사용자 리스트를 10명씩 Chunk로 나누어 처리하고, 청크 사이에 1초의 간격을 두어 **초당 10건(10 RPS)**의 안정적인 생성 속도를 유지함.
+  - 이를 통해 Gemini의 1000 RPM 쿼터를 안전하게 활용하면서 시스템 부하를 근본적으로 차단함.
 
 ## 2026-03-05
 

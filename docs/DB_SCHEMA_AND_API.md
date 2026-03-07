@@ -144,6 +144,7 @@ CREATE TABLE user_weights (
     }'::jsonb,
 
     version INT DEFAULT 1,
+    created_date DATE NOT NULL DEFAULT CURRENT_DATE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -270,6 +271,7 @@ CREATE TABLE record_tasks (
     -- 임베딩용 텍스트 (추후 임베딩 생성에 사용)
     combined_embedding_text TEXT,            -- "카테고리: {CAT} | 작업: {Group} - {Title}"
 
+    created_date DATE NOT NULL DEFAULT CURRENT_DATE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -295,6 +297,7 @@ CREATE TABLE schedule_histories (
     new_start_at VARCHAR(5) NOT NULL,  -- 변경 후 시작 "HH:MM"
     new_end_at VARCHAR(5) NOT NULL,    -- 변경 후 종료 "HH:MM"
     
+    created_date DATE NOT NULL DEFAULT CURRENT_DATE,
     created_at_client TIMESTAMPTZ NOT NULL, -- 클라이언트 발생 시각 (정렬 기준)
     created_at_server TIMESTAMPTZ DEFAULT NOW()
 );
@@ -322,6 +325,7 @@ CREATE TABLE task_embeddings (
     
     -- 메타데이터
     category VARCHAR(50),
+    created_date DATE NOT NULL DEFAULT CURRENT_DATE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -435,7 +439,7 @@ SET planner_date = fr.first_date
 FROM first_records fr
 WHERE pr.day_plan_id = fr.day_plan_id;
 
-ALTER TABLE planner_records ALTER COLUMN planner_date SET NOT NULL;
+-- ALTER TABLE planner_records ALTER COLUMN planner_date SET NOT NULL; -- (최근 정책 변경: NULL 허용)
 
 -- 트리거 설정 스크립트 (본문의 스키마 DDL 참조) 위에서 이미 실행되었음.
 

@@ -18,20 +18,24 @@ async def generate_batch_reports(request: WeeklyReportGenerateRequest) -> None:
     """
     logger.info(f"Starting batch report generation for {len(request.users)} users. Base Date: {request.base_date}")
     
-    semaphore = asyncio.Semaphore(10)  # 한 번에 최대 10개까지만 동시 실행 허용
-
-    async def _bounded_generate(user_target):
-        async with semaphore:
-            return await _generate_single_report(
+    # 10 RPS(초당 요청 수) 제한을 위해 10명씩 끊어서 처리
+    tasks = []
+    chunk_size = 10
+    
+    for i in range(0, len(request.users), chunk_size):
+        chunk = request.users[i : i + chunk_size]
+        logger.info(f"[BatchReport] Processing chunk {i//chunk_size + 1} ({len(chunk)} users)")
+        
+        for user_target in chunk:
+            tasks.append(asyncio.create_task(_generate_single_report(
                 user_id=user_target.user_id,
                 report_id=user_target.report_id,
                 base_date=request.base_date
-            )
-
-    # 각 사용자에 대한 처리 작업을 생성 (세마포어를 통해 동시 실행 수 제한)
-    tasks = []
-    for user_target in request.users:
-        tasks.append(_bounded_generate(user_target))
+            )))
+            
+        # 마지막 청크가 아니라면 1초 대기하여 RPS 제한 준수
+        if i + chunk_size < len(request.users):
+            await asyncio.sleep(1)
         
     results = await asyncio.gather(*tasks, return_exceptions=True)
     
@@ -61,57 +65,62 @@ async def _generate_single_report(user_id: int, report_id: int, base_date: date)
         # 2. LLM 입력 데이터 포맷팅
         user_prompt = format_report_data_for_llm(base_date, raw_data)
         
-        # 3. LLM 호출 (무한 재시도 로직)
+        # 3. LLM 호출 (3단계 Fallback 로직)
         client = get_gemini_client()
         generated_markdown = ""
+        success = False
         
-        # 3-1. gemini-3-flash-preview 로 최대 4회 시도
-        max_v3_retries = 4
-        v3_success = False
+        # 모델 리스트: (모델명, 최대 재시도 횟수, 무한 재시도 여부)
+        model_tiers = [
+            ("gemini-3-flash-preview", 4, False),
+            ("gemini-2.5-flash", 4, False),
+            ("gemini-2.5-flash-lite", 0, True) # 0은 무한 시도 의미
+        ]
         
-        for attempt in range(max_v3_retries):
-            try:
-                logger.info(f"[Report] LLM v3 Attempt {attempt + 1}/{max_v3_retries} for User {user_id}")
-                generated_markdown = await client.generate_text(
-                    system=WEEKLY_REPORT_SYSTEM_PROMPT,
-                    user=user_prompt,
-                    model_name="gemini-3-flash-preview"
-                )
-                if generated_markdown:
-                    v3_success = True
-                    break
-            except Exception as e:
-                error_code = map_exception_to_error_code(e)
-                is_retryable = is_retryable_error(error_code)
-                logger.warning(f"[Report] v3 Attempt {attempt + 1} failed for user {user_id}: {e} (Retryable: {is_retryable})")
-                
-                delay = 1.0 * (2 ** attempt)
-                await asyncio.sleep(delay)
-                
-        # 3-2. 실패 시 gemini-2.5-flash 로 무한 재시도
-        if not v3_success:
-            logger.warning(f"[Report] v3 model failed {max_v3_retries} times for user {user_id}. Falling back to gemini-2.5-flash infinitely.")
-            attempt_v2 = 0
-            while not v3_success:
-                attempt_v2 += 1
+        for model_name, max_retries, is_infinite in model_tiers:
+            attempt = 0
+            while True:
+                attempt += 1
                 try:
-                    logger.info(f"[Report] LLM v2.5 Attempt {attempt_v2} for User {user_id}")
+                    logger.info(f"[Report] LLM {model_name} Attempt {attempt} for User {user_id}")
                     generated_markdown = await client.generate_text(
                         system=WEEKLY_REPORT_SYSTEM_PROMPT,
                         user=user_prompt,
-                        model_name="gemini-2.5-flash"
+                        model_name=model_name
                     )
                     if generated_markdown:
-                        v3_success = True
+                        success = True
                         break
                 except Exception as e:
-                    logger.warning(f"[Report] v2.5 Attempt {attempt_v2} failed: {e}. Retrying...")
-                    # 백오프: 최대 16초 제한
-                    delay = min(1.0 * (2 ** (attempt_v2 - 1)), 16.0)
+                    error_code = map_exception_to_error_code(e)
+                    is_retryable = is_retryable_error(error_code)
+                    
+                    # 429 RESOURCE_EXHAUSTED 에러인 경우 즉시 다음 티어로 전환 (재시도 무의미)
+                    from app.models.planner.errors import PlannerErrorCode
+                    if error_code == PlannerErrorCode.PLANNER_RESOURCE_EXHAUSTED:
+                        logger.warning(f"[Report] {model_name} Quota Exhausted (429). Falling back immediately.")
+                        break
+                    
+                    # 재시도 가능 여부 판단 (5xx, Timeout 등)
+                    if not is_retryable:
+                        logger.error(f"[Report] Non-retryable error for {model_name}: {e}")
+                        break
+                        
+                    # 재시도 횟수 초과 여부 판단 (무한이 아닌 경우)
+                    if not is_infinite and attempt >= max_retries:
+                        logger.warning(f"[Report] {model_name} failed after {max_retries} attempts. Falling back to next tier.")
+                        break
+                        
+                    # 백오프 지연 (최대 16초)
+                    delay = min(1.0 * (2 ** (attempt - 1)), 16.0)
+                    logger.info(f"[Report] Retrying {model_name} in {delay}s...")
                     await asyncio.sleep(delay)
+            
+            if success:
+                break
                     
         # 4. DB 저장
-        if generated_markdown:
+        if success and generated_markdown:
             saved = await repo.upsert_weekly_report(
                 report_id=report_id,
                 user_id=user_id,
