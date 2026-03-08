@@ -31,9 +31,12 @@ class Settings(BaseSettings):
     # API Keys
     gemini_api_key: str | None = None # Gemini API 키
     
-    # Supabase
+    # Supabase (Legacy - for Auth/Storage if needed)
     supabase_url: str | None = None # Supabase URL
     supabase_key: str | None = None # Supabase API 키
+
+    # Database (Direct PostgreSQL)
+    database_url: str | None = None # PostgreSQL 접속 URL (sqlalchemy+asyncpg)
 
     class Config:
         env_file = ".env" # 환경 변수 파일

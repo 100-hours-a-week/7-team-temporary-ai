@@ -2,7 +2,45 @@
 
 날짜별 개발 진행 상황을 기록합니다.
 
-## 2026-03-07
+## 2026-03-08
+
+### 데이터베이스 드라이버 마이그레이션 (Supabase SDK -> SQLAlchemy)
+
+**목적**: Supabase 전용 SDK 종속성을 제거하고, 표준 PostgreSQL 드라이버(`SQLAlchemy` + `asyncpg`)를 사용하여 Supabase와 AWS RDS PostgreSQL 모두에 유연하게 접속할 수 있는 환경을 구축함.
+
+#### 주요 변경 사항
+
+1. **통합 데이터베이스 설정 (`app/core/config.py`, `.env`)**
+   - `DATABASE_URL` 환경변수 도입: `postgresql+asyncpg://` 형식을 사용하여 드라이버 기반 접속 체계로 전환.
+   - 기존 `SUPABASE_URL`, `SUPABASE_KEY`는 DB 작업에서 배제(Legacy로 분류).
+2. **비동기 세션 관리 도구 구현 (`app/db/session.py`)**
+   - `create_async_engine` 및 `async_sessionmaker`를 이용한 효율적인 커넥션 풀링 및 비동기 트랜잭션 관리.
+3. **모든 저장소(Repository) 레이어 리팩토링**
+   - `PersonalizationRepository`, `PlannerRepository`, `ReportRepository`에서 Supabase Client 호출을 SQLAlchemy `AsyncSession`으로 전면 교체.
+   - 성능 최적화를 위해 PostgreSQL의 `INSERT ... RETURNING`, `ON CONFLICT` (Upsert), `Batch Insert` 문법을 로우 쿼리(`text()`) 형태로 유지 및 반영.
+4. **연결성 테스트 현대화 (`tests/test_connectivity.py`)**
+   - SDK 초기화 확인 대신, 실제 DB 엔진을 통한 `SELECT 1` 핑 테스트로 변경.
+ 
+ #### 버그 수정 (Bug Fixes)
+ 
+ 1. **플래너 저장 시 `NameError: datetime` 발생 수정**
+    - **[app/db/repositories/planner_repository.py](app/db/repositories/planner_repository.py)**, **[app/db/repositories/personalization_repository.py](app/db/repositories/personalization_repository.py)**: `datetime.now()` 사용을 위해 누락된 `datetime` 임포트 추가.
+ 2. **플래너 배치 저장 시 `StatementError` 발생 수정**
+    - **[app/db/repositories/planner_repository.py](app/db/repositories/planner_repository.py)**: `record_tasks` 테이플 배치 INSERT 시, `flexTasks`와 `fixedTasks` 간의 필드 불일치로 인한 바인드 파라미터 에러(`estimated_time_range` 누락 등) 해결. 모든 로우가 동일한 키 구성을 가지도록 보정 로직 추가.
+ 
+ ### Logfire 모니터링 환경 분리 (Staging vs Main)
+ 
+ **목적**: 동일한 Logfire 프로젝트 내에서 스테이징 서버와 메인 서버의 로그가 섞이는 문제를 해결하기 위해, 환경별로 `service_name`을 다르게 설정하여 명확히 구분함.
+ 
+ #### 주요 변경 사항
+ 
+ 1. **동적 `service_name` 설정 (`app/main.py`)**
+    - `ENVIRONMENT` 환경변수 값(staging, main 등)을 읽어 `MOLIP-AI-Staging` 또는 `MOLIP-AI-Main` 형태의 서비스 이름을 Logfire에 등록하도록 수정.
+ 2. **환경별 설정 가이드 마련**
+    - 각 서버의 `.env` 파일에서 `ENVIRONMENT` 값을 적절히 설정하여 Logfire 대시보드에서 필터링이 가능하도록 조치.
+ 
+ 
+ ## 2026-03-07
 
 ### 주간 레포트 LLM 3단계 Fallback 로직 강화
 

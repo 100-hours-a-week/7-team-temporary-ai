@@ -2,6 +2,41 @@
 
 MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 날짜별로 기록한 문서입니다. `CHANGELOG.md`와 연계하여 참조하시기 바랍니다.
 
+## 2026-03-08
+
+### 1. DB 연결 테스트 시 gaierror: [Errno 8] (DNS Resolution Error) 발생
+- **현상**: `tests/test_connectivity.py` 실행 시 `socket.gaierror: [Errno 8] nodename nor servname provided, or not known` 에러 발생.
+- **원인**: Supabase의 **Direct Connection** 주소(`db.[ref].supabase.co`)는 **IPv6 전용**인 경우가 많음. 로컬 와이파이(ISP) 환경이 IPv6를 지원하지 않을 경우 해당 도메인을 찾지 못함.
+- **해결**: **IPv4를 지원하는 Connection Pooler 주소 사용**.
+  - Supabase 대시보드의 **Pooler** 탭에서 제공하는 주소(`aws-0-ap-northeast-2.pooler.supabase.com`)와 포트(버전에 따라 6543 또는 5432)를 사용하도록 `.env`의 `DATABASE_URL` 수정.
+### 2. ModuleNotFoundError: No module named 'psycopg2'
+- **현상**: SQLAlchemy 사용 시 `psycopg2` 모듈이 없다는 에러와 함께 연결 실패.
+- **원인**: SQLAlchemy가 비동기 드라이버(`asyncpg`) 대신 기본 동기 드라이버(`psycopg2`)를 사용하려고 시도함. 주로 `DATABASE_URL`의 프로토콜이 `postgresql://`로 시작하거나, `create_async_engine`이 아닌 `create_engine`을 호출할 때 발생.
+- **해결**: 
+  - `DATABASE_URL`을 반드시 **`postgresql+asyncpg://`** 프로토콜로 시작하도록 설정.
+  - 비동기 엔진 생성 시 반드시 `sqlalchemy.ext.asyncio.create_async_engine` 함수를 사용하고 있는지 확인.
+
+### 3. NameError: name 'datetime' is not defined
+- **현상**: 플래너 생성 후 DB 저장(`save_ai_draft`) 시 `NameError: name 'datetime' is not defined` 에러 발생하며 저장 실패.
+- **원인**: `planner_repository.py` 및 `personalization_repository.py`에서 `datetime.now()`를 사용하고 있으나, 파일 상단에 `datetime` 모듈 임포트가 누락됨.
+- **해결**: 각 파일 상단에 `from datetime import datetime` 임포트 구문을 추가함.
+
+### 4. sqlalchemy.exc.StatementError: A value is required for bind parameter 'estimated_time_range'
+- **현상**: `record_tasks` 테이블에 배치 INSERT 시 특정 파라미터(`estimated_time_range` 등) 값이 없다는 `StatementError` 발생.
+- **원인**: SQLAlchemy의 `execute(stmt, rows)`를 이용한 배치 삽입 시, 모든 로우(dict)가 동일한 키 구성을 가져야 함. `flexTasks`와 달리 `fixedTasks`나 분할된 작업(`is_split`) 생성 시 일부 필드가 누락되어 파라미터 그룹 간 불일치가 발생함.
+- **해결**: **Batch Insert 파라미터 키 동질화**.
+  - `planner_repository.py`에서 `task_rows`를 구성할 때, 첫 번째 로우의 키 셋을 기준으로 모든 로우가 동일한 키를 가지도록 보정함.
+  - 고정 일정(`fixedTasks`) 등 필드가 부족한 객체에 대해서도 기본값(`None`)을 채워 넣어 SQL 컴파일러가 모든 바인드 변수를 인식할 수 있도록 수정함.
+
+### 5. Logfire 모니터링 로그가 여러 서버에서 섞여서 구분이 힘든 문제
+- **현상**: 스테이징 서버와 메인 서버가 동일한 Logfire 토큰을 사용하면서, 어느 서버에서 발생한 로그인지 대시보드에서 한눈에 구분하기 어려움.
+- **원인**: Logfire 설정 시 `service_name`을 명시하지 않아 기본값으로 통합되어 기록됨.
+- **해결**: **환경 변수 기반 `service_name` 동적 할당**.
+  - `app/main.py`에서 `logfire.configure` 호출 시, `settings.environment` 값을 활용하여 `service_name=f"MOLIP-AI-{settings.environment.capitalize()}"`를 명시적으로 전달함.
+  - 이제 Logfire 대시보드의 'Service' 필터를 통해 서버별 로그를 독립적으로 조회할 수 있음.
+
+
+
 ## 2026-03-07
 
 ### 1. Gemini API 429 RESOURCE_EXHAUSTED 에러 발생 시 중단 문제
