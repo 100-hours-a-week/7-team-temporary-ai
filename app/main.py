@@ -22,7 +22,7 @@ import logfire
 # Logfire 설정 (관측성)
 logfire.configure(token=settings.logfire_token, send_to_logfire='if-token-present')
 
-VERSION = "26.02.28 - V2 MVP 배포 (주간 레포트, 챗봇 MCP)"
+VERSION = "26.03.08 - PostgreSQL 라이브러리를 사용한 DB 접속(마이그레이션)"
 
 # 로깅 설정
 logging.basicConfig(

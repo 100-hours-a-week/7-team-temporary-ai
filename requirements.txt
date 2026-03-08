@@ -20,6 +20,8 @@ opentelemetry-instrumentation-asgi==0.60b1
 
 # Database
 supabase==2.27.2
+sqlalchemy[asyncio]==2.0.28
+asyncpg==0.29.0
 
 # Test
 pytest==8.4.2

@@ -1,35 +1,71 @@
 import asyncio
 from datetime import date, timedelta, datetime, timezone
 from typing import AsyncGenerator, Annotated, Any
-
-from app.db.supabase_client import get_supabase_client
+from sqlalchemy import text
+from app.db.session import AsyncSessionLocal
 
 class ReportRepository:
     def __init__(self):
-        self.client = get_supabase_client()
+        pass
 
     async def fetch_past_4_weeks_data(self, user_id: int, base_date: date) -> list[dict[str, Any]]:
         """
         주간 레포트 생성을 위해 base_date 기준 과거 4주간(28일)의 사용자 플래너 기록 데이터를 조회합니다.
-        (planner_records 및 하위 record_tasks 포함, USER_FINAL 타입만 조회 여부 고려)
         """
         start_date = base_date - timedelta(days=28)
         end_date = base_date - timedelta(days=1)
         
         try:
-            # planner_records 와 그에 딸린 record_tasks, schedule_histories 를 함께 가져옴
-            query = (
-                self.client.table("planner_records")
-                .select("*, record_tasks(*), schedule_histories(*)")
-                .eq("user_id", user_id)
-                .eq("record_type", "USER_FINAL")
-                .gte("plan_date", start_date.isoformat())
-                .lte("plan_date", end_date.isoformat())
-            )
-            # Sync I/O를 비동기로 위임시켜 메인 이벤트 루프 차단 방지
-            response = await asyncio.to_thread(query.execute)
+            # Query with joins or multiple queries to match the "record_tasks(*), schedule_histories(*)" behavior
+            # In Supabase SDK, it nest them. In raw SQL, we might need to perform nested queries or map the join results.
+            # To minimize change, let's fetch them separately and group them.
             
-            return response.data if response.data else []
+            async with AsyncSessionLocal() as session:
+                # 1. Fetch records
+                stmt = text("""
+                    SELECT * FROM planner_records 
+                    WHERE user_id = :user_id 
+                    AND record_type = 'USER_FINAL'
+                    AND plan_date >= :start_date 
+                    AND plan_date <= :end_date
+                """)
+                res = await session.execute(stmt, {
+                    "user_id": user_id,
+                    "start_date": start_date,
+                    "end_date": end_date
+                })
+                # Convert ResultProxy rows to dicts
+                records = [dict(r._mapping) for r in res.fetchall()]
+                
+                if not records:
+                    return []
+                
+                record_ids = [r["id"] for r in records]
+                
+                # 2. Fetch tasks
+                task_stmt = text("SELECT * FROM record_tasks WHERE record_id = ANY(:ids)")
+                task_res = await session.execute(task_stmt, {"ids": record_ids})
+                tasks = [dict(r._mapping) for r in task_res.fetchall()]
+                
+                # 3. Fetch histories
+                hist_stmt = text("SELECT * FROM schedule_histories WHERE record_id = ANY(:ids)")
+                hist_res = await session.execute(hist_stmt, {"ids": record_ids})
+                histories = [dict(r._mapping) for r in hist_res.fetchall()]
+                
+                # 4. Nest them
+                tasks_by_record = {}
+                for t in tasks:
+                    tasks_by_record.setdefault(t["record_id"], []).append(t)
+                    
+                hists_by_record = {}
+                for h in histories:
+                    hists_by_record.setdefault(h["record_id"], []).append(h)
+                    
+                for r in records:
+                    r["record_tasks"] = tasks_by_record.get(r["id"], [])
+                    r["schedule_histories"] = hists_by_record.get(r["id"], [])
+                    
+                return records
         except Exception as e:
             import logging
             logging.error(f"[ReportRepository] Failed to fetch past 4 weeks data for user {user_id}: {e}")
@@ -39,23 +75,26 @@ class ReportRepository:
         """
         생성된 주간 레포트를 weekly_reports 테이블에 저장(또는 갱신)합니다.
         """
-        payload = {
-            "report_id": report_id,
-            "user_id": user_id,
-            "base_date": base_date.isoformat(),
-            "content": content,
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }
-        
         try:
-            # report_id가 Unique Key 이므로 upsert 사용
-            query = self.client.table("weekly_reports").upsert(payload, on_conflict="report_id")
-            # Sync I/O를 비동기로 위임시켜 메인 이벤트 루프 차단 방지
-            response = await asyncio.to_thread(query.execute)
-            
-            if response.data:
-                return True
-            return False
+            async with AsyncSessionLocal() as session:
+                # PostgreSQL ON CONFLICT (upsert)
+                stmt = text("""
+                    INSERT INTO weekly_reports (report_id, user_id, base_date, content, updated_at)
+                    VALUES (:report_id, :user_id, :base_date, :content, :updated_at)
+                    ON CONFLICT (report_id) DO UPDATE SET
+                        content = EXCLUDED.content,
+                        updated_at = EXCLUDED.updated_at
+                    RETURNING report_id
+                """)
+                res = await session.execute(stmt, {
+                    "report_id": report_id,
+                    "user_id": user_id,
+                    "base_date": base_date,
+                    "content": content,
+                    "updated_at": datetime.now(timezone.utc)
+                })
+                await session.commit()
+                return res.scalar() is not None
         except Exception as e:
             import logging
             logging.error(f"[ReportRepository] Failed to upsert weekly report {report_id}: {e}")
@@ -66,17 +105,10 @@ class ReportRepository:
         특정 report_id를 가진 레포트의 user_id를 조회합니다.
         """
         try:
-            query = (
-                self.client.table("weekly_reports")
-                .select("user_id")
-                .eq("report_id", report_id)
-                .limit(1)
-            )
-            response = await asyncio.to_thread(query.execute)
-            
-            if response.data and len(response.data) > 0:
-                return response.data[0].get("user_id")
-            return None
+            async with AsyncSessionLocal() as session:
+                stmt = text("SELECT user_id FROM weekly_reports WHERE report_id = :id")
+                res = await session.execute(stmt, {"id": report_id})
+                return res.scalar()
         except Exception as e:
             import logging
             logging.error(f"[ReportRepository] Failed to fetch user_id for report_id {report_id}: {e}")
@@ -92,13 +124,10 @@ class ReportRepository:
         report_ids = [t.report_id for t in targets]
         
         try:
-            query = (
-                self.client.table("weekly_reports")
-                .select("*")
-                .in_("report_id", report_ids)
-            )
-            response = await asyncio.to_thread(query.execute)
-            return response.data if response.data else []
+            async with AsyncSessionLocal() as session:
+                stmt = text("SELECT * FROM weekly_reports WHERE report_id = ANY(:ids)")
+                res = await session.execute(stmt, {"ids": report_ids})
+                return [dict(r._mapping) for r in res.fetchall()]
         except Exception as e:
             import logging
             logging.error(f"[ReportRepository] Failed to fetch weekly reports by targets: {e}")

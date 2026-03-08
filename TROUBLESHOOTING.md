@@ -2,6 +2,22 @@
 
 MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 날짜별로 기록한 문서입니다. `CHANGELOG.md`와 연계하여 참조하시기 바랍니다.
 
+## 2026-03-08
+
+### 1. DB 연결 테스트 시 gaierror: [Errno 8] (DNS Resolution Error) 발생
+- **현상**: `tests/test_connectivity.py` 실행 시 `socket.gaierror: [Errno 8] nodename nor servname provided, or not known` 에러 발생.
+- **원인**: Supabase의 **Direct Connection** 주소(`db.[ref].supabase.co`)는 **IPv6 전용**인 경우가 많음. 로컬 와이파이(ISP) 환경이 IPv6를 지원하지 않을 경우 해당 도메인을 찾지 못함.
+- **해결**: **IPv4를 지원하는 Connection Pooler 주소 사용**.
+  - Supabase 대시보드의 **Pooler** 탭에서 제공하는 주소(`aws-0-ap-northeast-2.pooler.supabase.com`)와 포트(버전에 따라 6543 또는 5432)를 사용하도록 `.env`의 `DATABASE_URL` 수정.
+
+### 2. ModuleNotFoundError: No module named 'psycopg2'
+- **현상**: SQLAlchemy 사용 시 `psycopg2` 모듈이 없다는 에러와 함께 연결 실패.
+- **원인**: SQLAlchemy가 비동기 드라이버(`asyncpg`) 대신 기본 동기 드라이버(`psycopg2`)를 사용하려고 시도함. 주로 `DATABASE_URL`의 프로토콜이 `postgresql://`로 시작하거나, `create_async_engine`이 아닌 `create_engine`을 호출할 때 발생.
+- **해결**: 
+  - `DATABASE_URL`을 반드시 **`postgresql+asyncpg://`** 프로토콜로 시작하도록 설정.
+  - 비동기 엔진 생성 시 반드시 `sqlalchemy.ext.asyncio.create_async_engine` 함수를 사용하고 있는지 확인.
+
+
 ## 2026-03-07
 
 ### 1. Gemini API 429 RESOURCE_EXHAUSTED 에러 발생 시 중단 문제

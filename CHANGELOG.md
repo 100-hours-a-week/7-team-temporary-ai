@@ -2,6 +2,26 @@
 
 날짜별 개발 진행 상황을 기록합니다.
 
+## 2026-03-08
+
+### 데이터베이스 드라이버 마이그레이션 (Supabase SDK -> SQLAlchemy)
+
+**목적**: Supabase 전용 SDK 종속성을 제거하고, 표준 PostgreSQL 드라이버(`SQLAlchemy` + `asyncpg`)를 사용하여 Supabase와 AWS RDS PostgreSQL 모두에 유연하게 접속할 수 있는 환경을 구축함.
+
+#### 주요 변경 사항
+
+1. **통합 데이터베이스 설정 (`app/core/config.py`, `.env`)**
+   - `DATABASE_URL` 환경변수 도입: `postgresql+asyncpg://` 형식을 사용하여 드라이버 기반 접속 체계로 전환.
+   - 기존 `SUPABASE_URL`, `SUPABASE_KEY`는 DB 작업에서 배제(Legacy로 분류).
+2. **비동기 세션 관리 도구 구현 (`app/db/session.py`)**
+   - `create_async_engine` 및 `async_sessionmaker`를 이용한 효율적인 커넥션 풀링 및 비동기 트랜잭션 관리.
+3. **모든 저장소(Repository) 레이어 리팩토링**
+   - `PersonalizationRepository`, `PlannerRepository`, `ReportRepository`에서 Supabase Client 호출을 SQLAlchemy `AsyncSession`으로 전면 교체.
+   - 성능 최적화를 위해 PostgreSQL의 `INSERT ... RETURNING`, `ON CONFLICT` (Upsert), `Batch Insert` 문법을 로우 쿼리(`text()`) 형태로 유지 및 반영.
+4. **연결성 테스트 현대화 (`tests/test_connectivity.py`)**
+   - SDK 초기화 확인 대신, 실제 DB 엔진을 통한 `SELECT 1` 핑 테스트로 변경.
+
+
 ## 2026-03-07
 
 ### 주간 레포트 LLM 3단계 Fallback 로직 강화
