@@ -20,9 +20,16 @@
    - 성능 최적화를 위해 PostgreSQL의 `INSERT ... RETURNING`, `ON CONFLICT` (Upsert), `Batch Insert` 문법을 로우 쿼리(`text()`) 형태로 유지 및 반영.
 4. **연결성 테스트 현대화 (`tests/test_connectivity.py`)**
    - SDK 초기화 확인 대신, 실제 DB 엔진을 통한 `SELECT 1` 핑 테스트로 변경.
-
-
-## 2026-03-07
+ 
+ #### 버그 수정 (Bug Fixes)
+ 
+ 1. **플래너 저장 시 `NameError: datetime` 발생 수정**
+    - **[app/db/repositories/planner_repository.py](app/db/repositories/planner_repository.py)**, **[app/db/repositories/personalization_repository.py](app/db/repositories/personalization_repository.py)**: `datetime.now()` 사용을 위해 누락된 `datetime` 임포트 추가.
+ 2. **플래너 배치 저장 시 `StatementError` 발생 수정**
+    - **[app/db/repositories/planner_repository.py](app/db/repositories/planner_repository.py)**: `record_tasks` 테이플 배치 INSERT 시, `flexTasks`와 `fixedTasks` 간의 필드 불일치로 인한 바인드 파라미터 에러(`estimated_time_range` 누락 등) 해결. 모든 로우가 동일한 키 구성을 가지도록 보정 로직 추가.
+ 
+ 
+ ## 2026-03-07
 
 ### 주간 레포트 LLM 3단계 Fallback 로직 강화
 
