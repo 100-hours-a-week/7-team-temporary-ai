@@ -2,17 +2,180 @@
 
 날짜별 개발 진행 상황을 기록합니다.
 
-## 2026-03-06
+## 2026-03-08
 
-### 주간 레포트 생성 API (Batch) 동시성 제어 강화
+### 데이터베이스 드라이버 마이그레이션 (Supabase SDK -> SQLAlchemy)
 
-**목적**: 다량의 주간 레포트 생성 요청이 몰릴 경우 발생할 수 있는 LLM API(Gemini) 속도 제한(Rate Limit) 초과 및 데이터베이스(Supabase) 부하 폭주를 방지하여 시스템 안정성을 보장함.
+**목적**: Supabase 전용 SDK 종속성을 제거하고, 표준 PostgreSQL 드라이버(`SQLAlchemy` + `asyncpg`)를 사용하여 Supabase와 AWS RDS PostgreSQL 모두에 유연하게 접속할 수 있는 환경을 구축함.
 
 #### 주요 변경 사항
 
-1. **세마포어(Semaphore)를 활용한 동시성 제한 (`app/services/report/weekly_report_service.py`)**
-   - **`asyncio.Semaphore(10)` 적용**: 천 개, 만 개의 대량 주간 레포트 생성 요청(`request.users`)이 들어오더라도, **한 번에 최대 10개**의 스레드(작업)까지만 DB 조회 및 LLM 호출을 동시 수행하도록 제한함.
-   - **유휴 시간 감소**: 10개의 작업 중 하나가 완료되면 즉시 빈자리를 채워 다음 작업을 시작하도록 구현하여, 단순 `sleep` 방식 대비 대용량 응답 처리 속도를 극대화하면서도 서버 리소스를 보호.
+1. **통합 데이터베이스 설정 (`app/core/config.py`, `.env`)**
+   - `DATABASE_URL` 환경변수 도입: `postgresql+asyncpg://` 형식을 사용하여 드라이버 기반 접속 체계로 전환.
+   - 기존 `SUPABASE_URL`, `SUPABASE_KEY`는 DB 작업에서 배제(Legacy로 분류).
+2. **비동기 세션 관리 도구 구현 (`app/db/session.py`)**
+   - `create_async_engine` 및 `async_sessionmaker`를 이용한 효율적인 커넥션 풀링 및 비동기 트랜잭션 관리.
+3. **모든 저장소(Repository) 레이어 리팩토링**
+   - `PersonalizationRepository`, `PlannerRepository`, `ReportRepository`에서 Supabase Client 호출을 SQLAlchemy `AsyncSession`으로 전면 교체.
+   - 성능 최적화를 위해 PostgreSQL의 `INSERT ... RETURNING`, `ON CONFLICT` (Upsert), `Batch Insert` 문법을 로우 쿼리(`text()`) 형태로 유지 및 반영.
+4. **연결성 테스트 현대화 (`tests/test_connectivity.py`)**
+   - SDK 초기화 확인 대신, 실제 DB 엔진을 통한 `SELECT 1` 핑 테스트로 변경.
+ 
+ #### 버그 수정 (Bug Fixes)
+ 
+ 1. **플래너 저장 시 `NameError: datetime` 발생 수정**
+    - **[app/db/repositories/planner_repository.py](app/db/repositories/planner_repository.py)**, **[app/db/repositories/personalization_repository.py](app/db/repositories/personalization_repository.py)**: `datetime.now()` 사용을 위해 누락된 `datetime` 임포트 추가.
+ 2. **플래너 배치 저장 시 `StatementError` 발생 수정**
+    - **[app/db/repositories/planner_repository.py](app/db/repositories/planner_repository.py)**: `record_tasks` 테이플 배치 INSERT 시, `flexTasks`와 `fixedTasks` 간의 필드 불일치로 인한 바인드 파라미터 에러(`estimated_time_range` 누락 등) 해결. 모든 로우가 동일한 키 구성을 가지도록 보정 로직 추가.
+ 
+ ### Logfire 모니터링 환경 분리 (Staging vs Main)
+ 
+ **목적**: 동일한 Logfire 프로젝트 내에서 스테이징 서버와 메인 서버의 로그가 섞이는 문제를 해결하기 위해, 환경별로 `service_name`을 다르게 설정하여 명확히 구분함.
+ 
+ #### 주요 변경 사항
+ 
+ 1. **동적 `service_name` 설정 (`app/main.py`)**
+    - `ENVIRONMENT` 환경변수 값(staging, main 등)을 읽어 `MOLIP-AI-Staging` 또는 `MOLIP-AI-Main` 형태의 서비스 이름을 Logfire에 등록하도록 수정.
+ 2. **환경별 설정 가이드 마련**
+    - 각 서버의 `.env` 파일에서 `ENVIRONMENT` 값을 적절히 설정하여 Logfire 대시보드에서 필터링이 가능하도록 조치.
+ 
+ 
+ ## 2026-03-07
+
+### 주간 레포트 LLM 3단계 Fallback 로직 강화
+
+**목적**: Gemini API 사용량 제한(`429 RESOURCE_EXHAUSTED`) 발생 시, 가동할 수 있는 최선의 모델로 자동 전환하여 레포트 생성의 중단 없는 성공을 보장함.
+
+#### 주요 변경 사항
+
+1. **3단계 모델 티어링 적용 (`app/services/report/weekly_report_service.py`)**
+   - **Tier 1: `gemini-3-flash-preview`**: 가장 정교한 분석 모델. 5xx 에러 시 최대 4회 재시도.
+   - **Tier 2: `gemini-2.5-flash`**: 안정적인 백업 모델. 5xx 에러 시 최대 4회 재시도.
+   - **Tier 3: `gemini-2.5-flash-lite`**: 무제한 할당량을 가진 최종 백업 모델. 성공할 때까지 **무한 재시도**.
+2. **429 에러 즉시 Fallback**: `429 RESOURCE_EXHAUSTED` (할당량 초과) 발생 시, 재시도가 무의미하므로 즉시 다음 티어로 전환하도록 최적화.
+3. **5xx 에러 지수 백오프**: 서버 일시 장애({500, 503, 504}) 발생 시에만 기존처럼 4회 재시도 유지.
+4. **에러 매핑 보완**: 새로운 `google-genai` 라이브러리의 `ClientError(429)`를 정확히 인식하도록 `map_exception_to_error_code` 로직 개선 (기존에는 429임에도 5xx처럼 취급되어 4회 재시도되었던 문제 해결).
+
+
+#### 코드 변경 내역 (Rollback 대비)
+
+**[BEFORE] 2단계 모델 전환 (3-flash -> 2.5-flash 무한)**
+```python
+        # 3-1. gemini-3-flash-preview 로 최대 4회 시도
+        max_v3_retries = 4
+        v3_success = False
+        
+        for attempt in range(max_v3_retries):
+            try:
+                # ... (3-flash 호출 로직)
+                if generated_markdown:
+                    v3_success = True
+                    break
+            except Exception as e:
+                # ... (지수 백오프)
+                
+        # 3-2. 실패 시 gemini-2.5-flash 로 무한 재시도
+        if not v3_success:
+            logger.warning(f"[Report] v3 model failed. Falling back to gemini-2.5-flash infinitely.")
+            while not v3_success:
+                try:
+                    # ... (2.5-flash 호출 및 에러 처리)
+```
+
+**[AFTER] 3단계 모델 티어링 (3-flash -> 2.5-flash -> 2.5-lite 무한)**
+```python
+        # 모델 리스트: (모델명, 최대 재시도 횟수, 무한 재시도 여부)
+        model_tiers = [
+            ("gemini-3-flash-preview", 4, False),
+            ("gemini-2.5-flash", 4, False),
+            ("gemini-2.5-flash-lite", 0, True) # 0은 무한 시도 의미
+        ]
+        
+        for model_name, max_retries, is_infinite in model_tiers:
+            attempt = 0
+            while True:
+                attempt += 1
+                try:
+                    # ... (LLM 호출 로직)
+                    if generated_markdown:
+                        success = True
+                        break
+                except Exception as e:
+                    # 429 RESOURCE_EXHAUSTED 인 경우 로그 특별 관리 및 즉시 다음 티어로 전환
+                    from app.models.planner.errors import PlannerErrorCode, map_exception_to_error_code
+                    error_code = map_exception_to_error_code(e)
+                    
+                    if error_code == PlannerErrorCode.PLANNER_RESOURCE_EXHAUSTED:
+                        logger.warning(f"[Report] {model_name} Quota Exhausted (429). Falling back immediately.")
+                        break
+                    
+                    # 5xx 또는 Timeout 등 재시도 가능 에러인 경우 횟수만큼 재시도
+                    if not is_retryable_error(error_code):
+                        break
+                    if not is_infinite and attempt >= max_retries:
+                        break
+                    
+                    # 지수 백오프 (최대 16초) 적용 후 continue
+```
+
+
+## 2026-03-06
+
+### 주간 레포트 생성 API (Batch) Rate Limit 강화 (10 RPS)
+
+**목적**: 다량의 주간 레포트 생성 요청이 몰릴 경우 발생할 수 있는 LLM API(Gemini) 속도 제한(Rate Limit) 초과 및 데이터베이스(Supabase) 부하 폭주를 방지하면서도, Gemini 인스턴스의 처리 용량(1000 RPM)을 최대한 효율적으로 활용하도록 개선함.
+
+#### 주요 변경 사항
+
+1. **초당 요청 수(RPS) 기반 스로틀링 적용 (`app/services/report/weekly_report_service.py`)**
+   - **10 RPS 제한**: 단순히 동시 실행 수를 제한하는 방식(Semaphore)에서 벗어나, **1초에 최대 10명씩** 작업을 시작하도록 명시적인 지연(`asyncio.sleep(1)`)을 추가함.
+   - **처리 효율 극대화**: Gemini의 분당 1000건(초당 약 16.6건) 제한을 넘지 않는 선에서 안정적으로 초당 10건씩 지속적으로 요청을 밀어넣어 대량 배치를 최단 시간에 처리하도록 설계.
+
+#### 코드 변경 내역 (Rollback 대비)
+
+**[BEFORE] 세마포어 기반 동시 실행 제한 (Concurrency Limit)**
+```python
+    semaphore = asyncio.Semaphore(10)  # 한 번에 최대 10개까지만 동시 실행 허용
+
+    async def _bounded_generate(user_target):
+        async with semaphore:
+            return await _generate_single_report(
+                user_id=user_target.user_id,
+                report_id=user_target.report_id,
+                base_date=request.base_date
+            )
+
+    # 각 사용자에 대한 처리 작업을 생성 (세마포어를 통해 동시 실행 수 제한)
+    tasks = []
+    for user_target in request.users:
+        tasks.append(_bounded_generate(user_target))
+        
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+```
+
+**[AFTER] 10 RPS 기반 시간차 실행 (Rate Limiting)**
+```python
+    # 10 RPS(초당 요청 수) 제한을 위해 10명씩 끊어서 처리
+    tasks = []
+    chunk_size = 10
+    
+    for i in range(0, len(request.users), chunk_size):
+        chunk = request.users[i : i + chunk_size]
+        logger.info(f"[BatchReport] Processing chunk {i//chunk_size + 1} ({len(chunk)} users)")
+        
+        for user_target in chunk:
+            tasks.append(asyncio.create_task(_generate_single_report(
+                user_id=user_target.user_id,
+                report_id=user_target.report_id,
+                base_date=request.base_date
+            )))
+            
+        # 마지막 청크가 아니라면 1초 대기하여 RPS 제한 준수
+        if i + chunk_size < len(request.users):
+            await asyncio.sleep(1)
+        
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+```
 
 ## 2026-03-05
 

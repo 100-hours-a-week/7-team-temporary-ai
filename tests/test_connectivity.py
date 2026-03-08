@@ -42,52 +42,29 @@ class TestConnectivity(unittest.IsolatedAsyncioTestCase):
             print(f"[FAIL] Gemini 연결 실패: {e}")
             self.fail(f"Gemini API 연결 실패 (방화벽/키 확인 필요): {e}")
 
-    def test_supabase_connection(self):
-        """Supabase DB 연결 확인 (Select 1)"""
-        print("\n>>> [Connectivity] Supabase DB 연결 테스트 시작")
+    async def test_database_connection(self):
+        """Database (PostgreSQL) 연결 확인 (Select 1)"""
+        print("\n>>> [Connectivity] Database 연결 테스트 시작 (SQLAlchemy)")
         
-        if not settings.supabase_url or not settings.supabase_key:
-             print("[WARNING] Supabase 설정이 없습니다. 테스트를 건너뜁니다.")
+        if not settings.database_url:
+             print("[WARNING] DATABASE_URL 설정이 없습니다. 테스트를 건너뜜.")
              return
 
         try:
-            from supabase import create_client, Client
+            from sqlalchemy import text
+            from app.db.session import engine
             
-            supabase: Client = create_client(settings.supabase_url, settings.supabase_key)
-            
-            # 가벼운 쿼리 실행 (테이블 조회 대신 DB 버전이나 Health Check가 이상적이나, 
-            # Supabase-py에서는 RPC나 단순 Select가 일반적임)
-            # 여기서는 존재하지 않는 데이터를 조회하여 연결만 확인 (에러가 안 나면 연결 성공)
-            
-            # 방법 1: Auth Health Check (로그인 없이 가능 여부에 따라 다름)
-            # 방법 2: 임의의 테이블 Select 
-            # (테이블 이름을 모르므로, 가장 확실한 건 에러가 'Connection' 관련이 아닌지 보는 것)
-            
-            # 여기서는 settings에 명시된 URL로 요청이 가는지 확인
-            # 실제 테이블이 없어도 404나 빈 리스트가 오면 연결은 된 것임 (Network Error가 아니면 됨)
-            
-            # 만약 'user' 테이블이 있다고 가정 (보통 있음)
-            # 없으면 에러가 나겠지만, Network 에러와는 다름.
-            # 가장 안전한 건 rpc가 있다면 rpc('ping') 같은 걸 만드는 것이나,
-            # 현재 상황에선 postgrest-py의 상태 확인이 어려우므로 
-            # Auth 객체가 생성되는지로 1차 확인
-            
-            self.assertIsNotNone(supabase.auth, "Supabase Client 생성 실패")
-            print("[SUCCESS] Supabase Client 초기화 성공")
-            
-            # 심화: 실제 요청 보내보기 (선택)
-            # try:
-            #     supabase.table("users").select("*").limit(1).execute()
-            # except Exception as e:
-            #     # 테이블이 없어서 나는 에러는 연결 성공으로 간주
-            #     if "relation" in str(e) and "does not exist" in str(e):
-            #          print("[SUCCESS] DB 연결 성공 (테이블 없음 에러 확인)")
-            #     else:
-            #          raise e
+            async with engine.connect() as conn:
+                # 'SELECT 1' is the most basic health check
+                result = await conn.execute(text("SELECT 1"))
+                value = result.scalar()
+                
+                self.assertEqual(value, 1, "DB Select 1 결과가 올바르지 않음")
+                print(f"[SUCCESS] Database 연결 성공 (result: {value})")
 
         except Exception as e:
-            print(f"[FAIL] Supabase 연결 실패: {e}")
-            self.fail(f"Supabase 연결 실패 (방화벽/키 확인 필요): {e}")
+            print(f"[FAIL] Database 연결 실패: {e}")
+            self.fail(f"Database 연결 실패 (URL/방화벽 확인 필요): {e}")
 
 if __name__ == '__main__':
     unittest.main()

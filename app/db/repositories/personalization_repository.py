@@ -1,7 +1,6 @@
+from sqlalchemy import text
 from datetime import datetime
-from typing import AsyncGenerator, Annotated, Any
-
-from app.db.supabase_client import get_supabase_client
+from app.db.session import AsyncSessionLocal
 from app.models.personalization import (
     PersonalizationIngestRequest, 
     ScheduleIngestItem, 
@@ -10,20 +9,14 @@ from app.models.personalization import (
 
 class PersonalizationRepository:
     def __init__(self):
-        self.client = get_supabase_client()
+        # We no longer need the Supabase client here, 
+        # sessions will be created within methods using AsyncSessionLocal
+        pass
 
     async def save_ingest_data(self, request: PersonalizationIngestRequest) -> bool:
         """
         사용자 플래너 데이터 및 이력을 DB에 저장합니다.
         (planner_records -> record_tasks -> schedule_histories 순서)
-        
-        * 최적화(Batch Insert):
-          일주일치(N일) 데이터를 저장할 때 N번 루프를 돌지 않고,
-          1) planner_records 일괄 저장 (1회)
-          2) 생성된 ID 매핑
-          3) record_tasks 일괄 저장 (1회)
-          4) schedule_histories 일괄 저장 (1회)
-          총 3회의 DB 요청만 발생하도록 최적화.
         """
         
         # 0. 데이터 전처리
@@ -49,7 +42,6 @@ class PersonalizationRepository:
 
         # 1. planner_records 일괄 데이터 준비
         record_payloads = []
-        # 순서 보장을 위해 day_plan_id 목록 정렬
         sorted_day_ids = sorted(schedules_by_day.keys())
         
         for day_plan_id in sorted_day_ids:
@@ -70,81 +62,119 @@ class PersonalizationRepository:
                 "excluded_count": len([s for s in day_schedules if s.assignment_status == "EXCLUDED"]),
                 "fill_rate": fill_rate,
                 "weights_version": None,
-                "created_at": datetime.now().isoformat()
+                "created_at": datetime.now()
             }
             record_payloads.append(record_data)
 
         if not record_payloads:
             return True
 
-        # 2. planner_records 일괄 저장 (Batch Insert)
-        record_res = self.client.table("planner_records").insert(record_payloads).execute()
-        if not record_res.data:
-            raise Exception("Failed to batch insert planner_records")
-            
-        # [Mapper] day_plan_id -> record_id
-        day_to_record_id = {r["day_plan_id"]: r["id"] for r in record_res.data}
-
-        # 3. 자식 데이터(Tasks, Histories) 일괄 준비
-        all_task_rows = []
-        all_history_rows = []
-        
-        for day_plan_id in sorted_day_ids:
-            record_id = day_to_record_id.get(day_plan_id)
-            if not record_id:
-                continue # 생성 실패한 경우? 스킵
-            
-            day_schedules = schedules_by_day[day_plan_id]
-            day_histories = histories_by_day.get(day_plan_id, [])
-            
-            # Tasks
-            for item in day_schedules:
-                row = {
-                    "record_id": record_id,
-                    "task_id": item.task_id,
-                    "day_plan_id": item.day_plan_id,
-                    "title": item.title,
-                    "status": item.status.value if item.status else None,
-                    "task_type": item.type.value,
-                    "assigned_by": item.assigned_by.value,
-                    "assignment_status": item.assignment_status.value,
-                    "start_at": item.start_at,
-                    "end_at": item.end_at,
-                    "estimated_time_range": item.estimated_time_range.value if item.estimated_time_range else None,
-                    "focus_level": item.focus_level,
-                    "is_urgent": item.is_urgent,
-                    "category": None,
-                    "cognitive_load": None,
-                    "group_id": None,
-                    "group_label": None,
-                    "order_in_group": None,
-                    "created_at": datetime.now().isoformat()
-                }
-                all_task_rows.append(row)
+        async with AsyncSessionLocal() as session:
+            try:
+                # 2. planner_records 일괄 저장 (Batch Insert with RETURNING)
+                # Note: asyncpg supports multiple rows in insert with RETURNING id
+                stmt = text("""
+                    INSERT INTO planner_records (
+                        user_id, day_plan_id, record_type, start_arrange, day_end_time, 
+                        focus_time_zone, user_age, user_gender, total_tasks, 
+                        assigned_count, excluded_count, fill_rate, weights_version, created_at
+                    ) VALUES (
+                        :user_id, :day_plan_id, :record_type, :start_arrange, :day_end_time, 
+                        :focus_time_zone, :user_age, :user_gender, :total_tasks, 
+                        :assigned_count, :excluded_count, :fill_rate, :weights_version, :created_at
+                    ) RETURNING id, day_plan_id
+                """)
                 
-            # Histories
-            for h in day_histories:
-                h_row = {
-                    "record_id": record_id,
-                    "schedule_id": h.schedule_id,
-                    "event_type": h.event_type.value,
-                    "prev_start_at": h.prev_start_at,
-                    "prev_end_at": h.prev_end_at,
-                    "new_start_at": h.new_start_at,
-                    "new_end_at": h.new_end_at,
-                    "created_at_client": h.created_at.isoformat(),
-                    "created_at_server": datetime.now().isoformat()
-                }
-                all_history_rows.append(h_row)
+                # We need to execute multiple inserts and get multiple IDs.
+                # SQLAlchemy's execute(stmt, record_payloads) with RETURNING is tricky with multiple rows.
+                # For PostgreSQL, we can use a single multi-row INSERT or loop.
+                # Given we want to preserve "Batch" logic, let's use a simpler mapping approach if needed.
+                
+                inserted_records = []
+                for payload in record_payloads:
+                    res = await session.execute(stmt, payload)
+                    inserted_records.append(res.fetchone())
+                
+                # [Mapper] day_plan_id -> record_id
+                day_to_record_id = {r.day_plan_id: r.id for r in inserted_records}
 
-        # 4. 자식 데이터 일괄 저장
-        if all_task_rows:
-            self.client.table("record_tasks").insert(all_task_rows).execute()
-            
-        if all_history_rows:
-            self.client.table("schedule_histories").insert(all_history_rows).execute()
+                # 3. 자식 데이터(Tasks, Histories) 일괄 준비
+                all_task_rows = []
+                all_history_rows = []
+                
+                for day_plan_id in sorted_day_ids:
+                    record_id = day_to_record_id.get(day_plan_id)
+                    if not record_id:
+                        continue
+                    
+                    day_schedules = schedules_by_day[day_plan_id]
+                    day_histories = histories_by_day.get(day_plan_id, [])
+                    
+                    for item in day_schedules:
+                        all_task_rows.append({
+                            "record_id": record_id,
+                            "task_id": item.task_id,
+                            "day_plan_id": item.day_plan_id,
+                            "title": item.title,
+                            "status": item.status.value if item.status else None,
+                            "task_type": item.type.value,
+                            "assigned_by": item.assigned_by.value,
+                            "assignment_status": item.assignment_status.value,
+                            "start_at": item.start_at,
+                            "end_at": item.end_at,
+                            "estimated_time_range": item.estimated_time_range.value if item.estimated_time_range else None,
+                            "focus_level": item.focus_level,
+                            "is_urgent": item.is_urgent,
+                            "created_at": datetime.now()
+                        })
+                        
+                    for h in day_histories:
+                        all_history_rows.append({
+                            "record_id": record_id,
+                            "schedule_id": h.schedule_id,
+                            "event_type": h.event_type.value,
+                            "prev_start_at": h.prev_start_at,
+                            "prev_end_at": h.prev_end_at,
+                            "new_start_at": h.new_start_at,
+                            "new_end_at": h.new_end_at,
+                            "created_at_client": h.created_at,
+                            "created_at_server": datetime.now()
+                        })
 
-        return True
+                # 4. 자식 데이터 일괄 저장
+                if all_task_rows:
+                    task_stmt = text("""
+                        INSERT INTO record_tasks (
+                            record_id, task_id, day_plan_id, title, status, task_type, 
+                            assigned_by, assignment_status, start_at, end_at, 
+                            estimated_time_range, focus_level, is_urgent, created_at
+                        ) VALUES (
+                            :record_id, :task_id, :day_plan_id, :title, :status, :task_type, 
+                            :assigned_by, :assignment_status, :start_at, :end_at, 
+                            :estimated_time_range, :focus_level, :is_urgent, :created_at
+                        )
+                    """)
+                    # SQLAlchemy execute for multiple rows
+                    await session.execute(task_stmt, all_task_rows)
+                    
+                if all_history_rows:
+                    hist_stmt = text("""
+                        INSERT INTO schedule_histories (
+                            record_id, schedule_id, event_type, prev_start_at, prev_end_at, 
+                            new_start_at, new_end_at, created_at_client, created_at_server
+                        ) VALUES (
+                            :record_id, :schedule_id, :event_type, :prev_start_at, :prev_end_at, 
+                            :new_start_at, :new_end_at, :created_at_client, :created_at_server
+                        )
+                    """)
+                    await session.execute(hist_stmt, all_history_rows)
+
+                await session.commit()
+                return True
+            except Exception as e:
+                await session.rollback()
+                print(f"[PersonalizationRepository] Error: {e}")
+                raise e
 
     def _calculate_fill_rate(self, schedules: list[ScheduleIngestItem], day_end_time: str) -> float:
         """
