@@ -28,6 +28,17 @@
  2. **플래너 배치 저장 시 `StatementError` 발생 수정**
     - **[app/db/repositories/planner_repository.py](app/db/repositories/planner_repository.py)**: `record_tasks` 테이플 배치 INSERT 시, `flexTasks`와 `fixedTasks` 간의 필드 불일치로 인한 바인드 파라미터 에러(`estimated_time_range` 누락 등) 해결. 모든 로우가 동일한 키 구성을 가지도록 보정 로직 추가.
  
+ ### Logfire 모니터링 환경 분리 (Staging vs Main)
+ 
+ **목적**: 동일한 Logfire 프로젝트 내에서 스테이징 서버와 메인 서버의 로그가 섞이는 문제를 해결하기 위해, 환경별로 `service_name`을 다르게 설정하여 명확히 구분함.
+ 
+ #### 주요 변경 사항
+ 
+ 1. **동적 `service_name` 설정 (`app/main.py`)**
+    - `ENVIRONMENT` 환경변수 값(staging, main 등)을 읽어 `MOLIP-AI-Staging` 또는 `MOLIP-AI-Main` 형태의 서비스 이름을 Logfire에 등록하도록 수정.
+ 2. **환경별 설정 가이드 마련**
+    - 각 서버의 `.env` 파일에서 `ENVIRONMENT` 값을 적절히 설정하여 Logfire 대시보드에서 필터링이 가능하도록 조치.
+ 
  
  ## 2026-03-07
 

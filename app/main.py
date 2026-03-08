@@ -20,7 +20,12 @@ from app.core.scheduler import run_embedding_scheduler
 import logfire
 
 # Logfire 설정 (관측성)
-logfire.configure(token=settings.logfire_token, send_to_logfire='if-token-present')
+service_name = f"MOLIP-AI-{settings.environment.capitalize()}"
+logfire.configure(
+    token=settings.logfire_token, 
+    send_to_logfire='if-token-present',
+    service_name=service_name
+)
 
 VERSION = "26.03.08 - PostgreSQL 라이브러리를 사용한 DB 접속(마이그레이션)"
 
