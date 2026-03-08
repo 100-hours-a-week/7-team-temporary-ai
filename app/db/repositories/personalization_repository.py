@@ -1,4 +1,5 @@
 from sqlalchemy import text
+from datetime import datetime
 from app.db.session import AsyncSessionLocal
 from app.models.personalization import (
     PersonalizationIngestRequest, 

@@ -1,4 +1,5 @@
 from sqlalchemy import text
+from datetime import datetime
 from app.db.session import AsyncSessionLocal
 from app.models.planner.internal import PlannerGraphState, TaskFeature
 from app.models.planner.response import AssignmentResult
@@ -106,7 +107,6 @@ class PlannerRepository:
                         "duration_plan_min": feature.durationPlanMin,
                         "duration_min_chunk": feature.durationMinChunk,
                         "duration_max_chunk": feature.durationMaxChunk,
-                        # "children": children_data, # Use JSON conversion if needed
                         "is_split": is_split,
                         "created_at": datetime.now()
                     }
@@ -119,12 +119,26 @@ class PlannerRepository:
                             child_row["start_at"] = child["startAt"]
                             child_row["end_at"] = child["endAt"]
                             child_row["is_split"] = False
-                            # child_row["children"] = None
                             child_row["created_at"] = datetime.now()
                             task_rows.append(child_row)
                     
+                # Get the set of keys from the first row to ensure consistency
+                if task_rows:
+                    all_keys = task_rows[0].keys()
+                else:
+                    # If no flex tasks, we'll need a default set of keys for fixed tasks later
+                    all_keys = [
+                        "record_id", "task_id", "day_plan_id", "parent_schedule_id", "title",
+                        "status", "task_type", "assigned_by", "assignment_status", "start_at",
+                        "end_at", "estimated_time_range", "focus_level", "is_urgent", "category",
+                        "cognitive_load", "group_id", "group_label", "order_in_group",
+                        "importance_score", "fatigue_cost", "duration_avg_min", "duration_plan_min",
+                        "duration_min_chunk", "duration_max_chunk", "is_split", "created_at"
+                    ]
+
                 for ft in state.fixedTasks:
-                    task_rows.append({
+                    fixed_row = {k: None for k in all_keys}
+                    fixed_row.update({
                         "record_id": record_id,
                         "task_id": ft.taskId,
                         "day_plan_id": ft.dayPlanId,
@@ -136,14 +150,12 @@ class PlannerRepository:
                         "assignment_status": "ASSIGNED",
                         "start_at": ft.startAt,
                         "end_at": ft.endAt,
+                        "is_split": False,
                         "created_at": datetime.now()
                     })
+                    task_rows.append(fixed_row)
                     
                 if task_rows:
-                    # Generic insert for record_tasks. 
-                    # Note: We only insert columns that exist in the DB.
-                    # Some fields like importance_score etc. were added in the dict above.
-                    # We use a keys list to ensure all rows have same keys for binary execute.
                     first_row_keys = task_rows[0].keys()
                     cols = ", ".join(first_row_keys)
                     vals = ", ".join([f":{k}" for k in first_row_keys])
