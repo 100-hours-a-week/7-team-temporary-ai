@@ -2,6 +2,14 @@
 
 MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 날짜별로 기록한 문서입니다. `CHANGELOG.md`와 연계하여 참조하시기 바랍니다.
 
+## 2026-03-10
+
+### 1. DB 접속 방식 변경 후 챗봇 서비스 오류 (greenlet 누락)
+- **현상**: 최근 DB 접속 방식을 변경한 이후, 챗봇 쪽에서 예기치 않은 서버 오류가 발생하며 챗봇이 정상 동작하지 않음.
+- **원인**: 비동기 패턴(SQLAlchemy async)으로 데이터베이스에 접근하는 과정에서 내부적으로 요구되는 `greenlet` 라이브러리가 설치 파일(`requirements.txt`)에 누락되어 런타임 시점에서 에러가 발생함.
+- **해결**: 
+  - `requirements.txt` 파일에 `greenlet==3.1.1`을 추가 명시하고 새로 설치(`pip install -r requirements.txt`)하여 오류를 말끔히 해결함.
+
 ## 2026-03-08
 
 ### 1. DB 연결 테스트 시 gaierror: [Errno 8] (DNS Resolution Error) 발생
