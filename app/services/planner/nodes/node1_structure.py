@@ -6,7 +6,7 @@ import logfire  # [Logfire] Import
 from typing import AsyncGenerator, Annotated, Any, Optional, Literal
 
 from app.models.planner.internal import TaskFeature, PlannerGraphState
-from app.llm.gemini_client import get_gemini_client
+from app.llm.runpod_client import get_runpod_client
 from app.llm.prompts.node1_prompt import NODE1_SYSTEM_PROMPT, format_tasks_for_llm
 from app.models.planner.request import EstimatedTimeRange, ScheduleItem
 from app.models.planner.errors import map_exception_to_error_code, is_retryable_error
@@ -24,7 +24,7 @@ async def node1_structure_analysis(state: PlannerGraphState) -> PlannerGraphStat
     flex_tasks: list[ScheduleItem] = state.flexTasks # FLEX인 Task 리스트
     
     # 1. 입력 준비
-    client = get_gemini_client()
+    client = get_runpod_client()
     formatted_tasks = format_tasks_for_llm(flex_tasks)
     
     # [Logfire] LLM 입력 데이터 로깅

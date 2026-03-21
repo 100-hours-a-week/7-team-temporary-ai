@@ -5,7 +5,7 @@ import logfire  # [Logfire] Import
 from typing import AsyncGenerator, Annotated, Any
 
 from app.models.planner.internal import PlannerGraphState, ChainCandidate
-from app.llm.gemini_client import get_gemini_client
+from app.llm.runpod_client import get_runpod_client
 from app.llm.prompts.node3_prompt import NODE3_SYSTEM_PROMPT, format_node3_input
 from app.services.planner.utils.session_utils import calculate_capacity
 from app.models.planner.errors import map_exception_to_error_code, is_retryable_error
@@ -44,7 +44,7 @@ async def node3_chain_generator(state: PlannerGraphState) -> PlannerGraphState:
         focus_timezone=state.request.user.focusTimeZone
     )
     
-    client = get_gemini_client()
+    client = get_runpod_client()
     max_retries = 4
     candidates_result: list[ChainCandidate] = []
     

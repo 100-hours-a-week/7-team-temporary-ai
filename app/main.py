@@ -27,7 +27,7 @@ logfire.configure(
     service_name=service_name
 )
 
-VERSION = "26.03.08 - PostgreSQL 라이브러리를 사용한 DB 접속(마이그레이션)"
+VERSION = "26.03.21 - V3"
 
 # 로깅 설정
 logging.basicConfig(
