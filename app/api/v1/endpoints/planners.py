@@ -66,9 +66,20 @@ async def generate_planner(
                 fixed_schedules=fixed_tasks
             )
             
+            # Load user-specific weights from DB, fallback to defaults
+            weights = WeightParams()
+            try:
+                from app.db.repositories.personalization_repository import PersonalizationRepository
+                personalization_repo = PersonalizationRepository()
+                weight_data = await personalization_repo.fetch_current_weights(request.user.userId)
+                if weight_data:
+                    weights = WeightParams(**weight_data["weights"])
+            except Exception as w_e:
+                print(f"[Warning] Failed to load user weights, using defaults: {w_e}")
+
             state = PlannerGraphState(
                 request=request,
-                weights=WeightParams(), # Use default weights for now
+                weights=weights,
                 fixedTasks=fixed_tasks,
                 flexTasks=flex_tasks,
                 freeSessions=sessions

@@ -5,7 +5,7 @@ from datetime import date
 
 from app.models.report import WeeklyReportGenerateRequest
 from app.db.repositories.report_repository import ReportRepository
-from app.llm.gemini_client import get_gemini_client
+from app.llm.runpod_client import get_runpod_client
 from app.llm.prompts.report_prompt import format_report_data_for_llm, WEEKLY_REPORT_SYSTEM_PROMPT
 from app.models.planner.errors import map_exception_to_error_code, is_retryable_error
 
@@ -65,59 +65,34 @@ async def _generate_single_report(user_id: int, report_id: int, base_date: date)
         # 2. LLM 입력 데이터 포맷팅
         user_prompt = format_report_data_for_llm(base_date, raw_data)
         
-        # 3. LLM 호출 (3단계 Fallback 로직)
-        client = get_gemini_client()
+        # 3. LLM 호출 (재시도 로직)
+        client = get_runpod_client()
         generated_markdown = ""
         success = False
-        
-        # 모델 리스트: (모델명, 최대 재시도 횟수, 무한 재시도 여부)
-        model_tiers = [
-            ("gemini-3-flash-preview", 4, False),
-            ("gemini-2.5-flash", 4, False),
-            ("gemini-2.5-flash-lite", 0, True) # 0은 무한 시도 의미
-        ]
-        
-        for model_name, max_retries, is_infinite in model_tiers:
-            attempt = 0
-            while True:
-                attempt += 1
-                try:
-                    logger.info(f"[Report] LLM {model_name} Attempt {attempt} for User {user_id}")
-                    generated_markdown = await client.generate_text(
-                        system=WEEKLY_REPORT_SYSTEM_PROMPT,
-                        user=user_prompt,
-                        model_name=model_name
-                    )
-                    if generated_markdown:
-                        success = True
-                        break
-                except Exception as e:
-                    error_code = map_exception_to_error_code(e)
-                    is_retryable = is_retryable_error(error_code)
-                    
-                    # 429 RESOURCE_EXHAUSTED 에러인 경우 즉시 다음 티어로 전환 (재시도 무의미)
-                    from app.models.planner.errors import PlannerErrorCode
-                    if error_code == PlannerErrorCode.PLANNER_RESOURCE_EXHAUSTED:
-                        logger.warning(f"[Report] {model_name} Quota Exhausted (429). Falling back immediately.")
-                        break
-                    
-                    # 재시도 가능 여부 판단 (5xx, Timeout 등)
-                    if not is_retryable:
-                        logger.error(f"[Report] Non-retryable error for {model_name}: {e}")
-                        break
-                        
-                    # 재시도 횟수 초과 여부 판단 (무한이 아닌 경우)
-                    if not is_infinite and attempt >= max_retries:
-                        logger.warning(f"[Report] {model_name} failed after {max_retries} attempts. Falling back to next tier.")
-                        break
-                        
-                    # 백오프 지연 (최대 16초)
+
+        max_retries = 4
+        for attempt in range(1, max_retries + 1):
+            try:
+                logger.info(f"[Report] RunPod LLM Attempt {attempt} for User {user_id}")
+                generated_markdown = await client.generate_text(
+                    system=WEEKLY_REPORT_SYSTEM_PROMPT,
+                    user=user_prompt,
+                )
+                if generated_markdown:
+                    success = True
+                    break
+            except Exception as e:
+                error_code = map_exception_to_error_code(e)
+                is_retryable = is_retryable_error(error_code)
+
+                if not is_retryable:
+                    logger.error(f"[Report] Non-retryable error: {e}")
+                    break
+
+                if attempt < max_retries:
                     delay = min(1.0 * (2 ** (attempt - 1)), 16.0)
-                    logger.info(f"[Report] Retrying {model_name} in {delay}s...")
+                    logger.info(f"[Report] Retrying in {delay}s...")
                     await asyncio.sleep(delay)
-            
-            if success:
-                break
                     
         # 4. DB 저장
         if success and generated_markdown:

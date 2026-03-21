@@ -2,6 +2,49 @@
 
 날짜별 개발 진행 상황을 기록합니다.
 
+## 2026-03-21
+
+### LLM 엔진 전환: Gemini API -> RunPod vLLM (Qwen2.5-72B-Instruct-AWQ)
+
+**목적**: 외부 API 의존도를 줄이고, 자체 호스팅 LLM을 통해 비용 절감 및 커스터마이징 가능한 추론 환경을 구축함.
+
+#### 주요 변경 사항
+
+1. **RunPod Pod 구축 (A100 80GB x1)**
+   - 모델: `Qwen/Qwen2.5-72B-Instruct-AWQ` (AWQ 4bit 양자화, ~38GB VRAM)
+   - vLLM 0.18.0 기반 OpenAI 호환 API 서빙
+   - Function Calling 지원 (`--enable-auto-tool-choice --tool-call-parser hermes`)
+
+2. **RunPod 클라이언트 구현 (`app/llm/runpod_client.py`)**
+   - GeminiClient와 동일한 인터페이스 (`generate`, `generate_text`) 제공
+   - RunPod 실패 시 Gemini로 자동 폴백 (lazy init으로 불필요 시 Gemini 미초기화)
+
+3. **LLM 추론 사용처 전면 교체 (4개 파일)**
+   - `app/services/planner/nodes/node1_structure.py` — 작업 구조 분석 (JSON)
+   - `app/services/planner/nodes/node3_chain_generator.py` — 작업 체인 생성 (JSON)
+   - `app/services/report/weekly_report_service.py` — 주간 레포트 생성 (텍스트)
+   - `app/services/report/chat_service.py` — 챗봇 스트리밍 + tool call (OpenAI 호환 스트리밍으로 전환)
+
+4. **Gemini 유지 (임베딩 전용)**
+   - `app/services/embedding_service.py`, `app/mcp/server.py` — Gemini 임베딩 API 사용 (vLLM 미지원)
+   - `app/llm/gemini_client.py` — 임베딩용 + 폴백용으로 보존
+
+5. **설정 변경**
+   - `app/core/config.py` — `runpod_base_url`, `runpod_api_key` 필드 추가
+   - `.env` — `RUNPOD_BASE_URL`, `RUNPOD_API_KEY` 추가
+   - `requirements.txt` — `openai==2.29.0` 추가
+
+6. **테스트 추가 (`tests/test_connectivity.py`)**
+   - `test_runpod_connection` — RunPod 텍스트 응답 생성 확인
+   - `test_runpod_json_generation` — RunPod JSON 응답 생성 확인
+   - `test_runpod_fallback_to_gemini` — RunPod 장애 시 Gemini 폴백 동작 확인
+
+7. **가이드 문서 업데이트 (`docs/runpod_huggingface_guide.md`)**
+   - 섹션 6을 Pod 방식(A100 80GB x1, AWQ)으로 전면 교체
+   - Container Start Command, 환경변수, 비용 등 실제 구축 내용 반영
+
+---
+
 ## 2026-03-10
 
 ### 챗봇 DB 비동기 세션 의존성(`greenlet`) 추가

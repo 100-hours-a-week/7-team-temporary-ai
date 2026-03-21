@@ -2,6 +2,140 @@
 
 MOLIP AI 서버 개발 과정에서 발생했던 이슈들과 해결 과정을 날짜별로 기록한 문서입니다. `CHANGELOG.md`와 연계하여 참조하시기 바랍니다.
 
+## 2026-03-21: RunPod + vLLM + Qwen2.5-72B 구축
+
+> Gemini API를 RunPod 자체 호스팅 LLM(Qwen2.5-72B-Instruct)으로 교체하는 과정에서 발생한 이슈들.
+
+### 1. 모델 선정
+
+#### 1-1. 최초 시도: nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-Base-BF16
+- MoE 모델, 총 120B / 활성 12B. 필요 VRAM ~240GB.
+- 비용 과다로 포기.
+
+#### 1-2. 최종 선택: Qwen/Qwen2.5-72B-Instruct-AWQ
+- Gemini 2.5 Flash급 성능, 한국어 우수, function calling(MCP) 지원.
+- AWQ 4bit 양자화로 ~38GB VRAM.
+
+---
+
+### 2. RunPod Serverless 시도 (실패)
+- **설정**: Worker Image `runpod/worker-vllm:latest`, A100 80GB x2, TP=2, Min Workers=1.
+- **현상**: 워커가 6분 이상 `initializing` 상태에서 벗어나지 못함. 환경변수(`MODEL_NAME`)가 반영되지 않아 기본 모델(Qwen3-0.6B)이 로딩됨.
+- **결론**: Serverless 포기, Pod 방식으로 전환.
+
+---
+
+### 3. RunPod Pod - A40 x3 시도 (실패)
+- **설정**: A40 48GB x3 (총 144GB), Qwen2.5-72B-Instruct (BF16), TP=3.
+
+#### 3-1. Container Start Command 형식 충돌
+- `python3 -m vllm.entrypoints.openai.api_server --model ...` -> `unrecognized arguments` 에러.
+- `vllm serve Qwen/...` -> 동일 에러.
+- `bash -c "vllm serve ..."` -> `--compilation-config` JSON 파싱 에러.
+- **해결**: RunPod vLLM 템플릿은 자체 엔트리포인트를 가지고 있어서, Start Command에는 **모델명부터 시작하는 인자만** 넣어야 함:
+  ```
+  Qwen/Qwen2.5-72B-Instruct --served-model-name Qwen2.5-72B-Instruct --port 8000 ...
+  ```
+
+#### 3-2. Attention head 나눗셈 에러
+- `Total number of attention heads (64) must be divisible by tensor parallel size (3)`.
+- Qwen2.5-72B의 attention head는 64개, 64/3은 나누어 떨어지지 않음.
+- **교훈**: tensor_parallel_size는 반드시 head 수(64)의 약수여야 함 (1, 2, 4, 8, 16, 32, 64).
+
+---
+
+### 4. RunPod Pod - A40 x2 + AWQ 양자화 (실패)
+- **설정**: A40 48GB x2, Qwen2.5-72B-Instruct-AWQ (~38GB), TP=2.
+
+#### 4-1. NCCL P2P 통신 멈춤
+- `vLLM is using nccl==2.27.5` 이후 20분 이상 멈춤. GPU VRAM 0%, utilization 100% (데드락).
+- **원인**: A40은 NVLink 없이 PCIe 연결이라 NCCL P2P 불가.
+- **해결**: `NCCL_P2P_DISABLE=1` 환경변수 추가.
+
+#### 4-2. Shared memory broadcast 타임아웃
+- 모델 로딩/CUDA graph 완료 후 `No available shared memory broadcast block found in 60 seconds` 반복.
+- **해결**: `--disable-frontend-multiprocessing` 옵션 추가.
+
+#### 4-3. CUDA driver error (최종 실패)
+- `RuntimeError: CUDA driver error: unspecified launch failure`
+- warmup 단계에서 `triton_red_fused_marlin_gemm` 커널 크래시.
+- **원인**: A40 (compute capability 8.6)에서 AWQ marlin 커널 + torch.compile 조합 호환 문제.
+- **결론**: A40에서 72B AWQ 모델 구동 불가.
+
+---
+
+### 5. RunPod Pod - A100 80GB x1 (성공)
+
+#### 5-1. 최종 구성
+| 항목 | 값 |
+|------|-----|
+| GPU | A100 80GB SXM x1 |
+| Template | RunPod vLLM |
+| Container Disk | 20GB |
+| Volume Disk | 100GB |
+| TP | 1 (단일 GPU, 멀티GPU 문제 제거) |
+
+#### 5-2. Environment Variables
+```
+HF_TOKEN=hf_xxx
+HF_HOME=/workspace/.huggingface
+VLLM_API_KEY={{ RUNPOD_SECRET_VLLM_API_KEY }}
+NCCL_P2P_DISABLE=1
+```
+
+#### 5-3. Container Start Command
+```
+Qwen/Qwen2.5-72B-Instruct-AWQ --served-model-name Qwen2.5-72B-Instruct --port 8000 --gpu-memory-utilization 0.95 --max-model-len 8192 --dtype auto --enable-auto-tool-choice --tool-call-parser hermes --disable-frontend-multiprocessing
+```
+
+#### 5-4. 디스크 용량 부족 에러
+- `No space left on device (os error 28)` - HF 캐시가 Container Disk(20GB)에 저장됨.
+- **해결**: `HF_HOME=/workspace/.huggingface` 환경변수로 Volume Disk(100GB)에 저장.
+
+#### 5-5. 테스트 결과
+- 텍스트: "한국의 수도는 서울입니다." (정확)
+- JSON: `{"answer": "서울", "confidence": "100%"}` (정상 파싱)
+- Node1 (구조분석): category/cognitiveLoad 정확 분류, "asdf" -> ERROR 처리
+- Node3 (체인생성): focusTimeZone 반영, 복수 후보 시나리오 정상 생성
+
+---
+
+### 6. 코드 교체
+
+#### 6-1. 신규 파일
+- `app/llm/runpod_client.py` - OpenAI 호환 API 클라이언트 (GeminiClient와 동일 인터페이스 `generate`, `generate_text`)
+
+#### 6-2. 설정 변경
+- `app/core/config.py` - `runpod_base_url`, `runpod_api_key` 필드 추가
+- `.env` - `RUNPOD_BASE_URL`, `RUNPOD_API_KEY` 추가
+- `requirements.txt` - `openai==2.29.0` 추가
+
+#### 6-3. Gemini -> RunPod 교체
+| 파일 | 용도 | 변경 |
+|------|------|------|
+| `node1_structure.py` | 작업 구조 분석 (JSON) | `get_gemini_client()` -> `get_runpod_client()` |
+| `node3_chain_generator.py` | 작업 체인 생성 (JSON) | `get_gemini_client()` -> `get_runpod_client()` |
+| `weekly_report_service.py` | 주간 레포트 (텍스트) | Gemini 3단계 모델 폴백 -> RunPod 단순 재시도 |
+| `chat_service.py` | 챗봇 스트리밍 + tool call | Gemini SDK -> OpenAI 호환 스트리밍 + function calling |
+
+#### 6-4. Gemini 유지 (임베딩 전용, vLLM 미지원)
+- `embedding_service.py`, `mcp/server.py`, `gemini_client.py`
+
+#### 6-5. 테스트 추가
+- `tests/test_connectivity.py` - `test_runpod_connection`, `test_runpod_json_generation`
+
+---
+
+### 7. 교훈
+
+1. **tensor_parallel_size는 모델의 attention head 수의 약수여야 함**.
+2. **A40은 멀티GPU LLM 서빙에 부적합** (NVLink 없음, NCCL P2P 불가, marlin 커널 호환 문제).
+3. **AWQ 양자화 + A100 단일 GPU가 가장 안정적** (TP=1로 멀티GPU 문제 완전 제거).
+4. **RunPod vLLM 템플릿 Start Command는 모델명부터 시작** (`vllm serve` 넣지 말 것).
+5. **HF_HOME을 Volume 경로로 설정** (Container Disk 용량 부족 방지).
+
+---
+
 ## 2026-03-10
 
 ### 1. DB 접속 방식 변경 후 챗봇 서비스 오류 (greenlet 누락)

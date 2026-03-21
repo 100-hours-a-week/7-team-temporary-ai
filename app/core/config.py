@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     supabase_url: str | None = None # Supabase URL
     supabase_key: str | None = None # Supabase API 키
 
+    # RunPod Pod (vLLM OpenAI 호환 API)
+    runpod_base_url: str | None = None # RunPod Pod vLLM Base URL
+    runpod_api_key: str | None = None # RunPod API 키
+
     # Database (Direct PostgreSQL)
     database_url: str | None = None # PostgreSQL 접속 URL (sqlalchemy+asyncpg)
 

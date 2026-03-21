@@ -1,32 +1,138 @@
 from sqlalchemy import text
-from datetime import datetime
+from datetime import datetime, date
 from app.db.session import AsyncSessionLocal
-from app.models.personalization import (
-    PersonalizationIngestRequest, 
-    ScheduleIngestItem, 
-    ScheduleHistoryIngestItem
-)
+from app.models.personalization import PersonalizationIngestRequest
+import json
+
 
 class PersonalizationRepository:
     def __init__(self):
-        # We no longer need the Supabase client here, 
-        # sessions will be created within methods using AsyncSessionLocal
         pass
 
-    async def save_ingest_data(self, request: PersonalizationIngestRequest) -> bool:
+    async def fetch_draft_final_pairs(
+        self, user_id: int, start_date: date, end_date: date
+    ) -> list[dict]:
+        """
+        해당 기간의 AI_DRAFT + USER_FINAL 쌍을 day_plan_id로 매칭하여 반환.
+        같은 day_plan_id에 두 타입이 모두 있는 경우만 반환한다.
+        """
+        async with AsyncSessionLocal() as session:
+            stmt = text("""
+                WITH paired AS (
+                    SELECT day_plan_id
+                    FROM planner_records
+                    WHERE user_id = :user_id
+                      AND planner_date >= :start_date
+                      AND planner_date <= :end_date
+                    GROUP BY day_plan_id
+                    HAVING COUNT(DISTINCT record_type) FILTER (
+                        WHERE record_type IN ('AI_DRAFT', 'USER_FINAL')
+                    ) = 2
+                )
+                SELECT pr.id, pr.day_plan_id, pr.record_type, pr.fill_rate,
+                       pr.assigned_count, pr.excluded_count, pr.focus_time_zone,
+                       pr.weights_version, pr.created_at
+                FROM planner_records pr
+                JOIN paired p ON pr.day_plan_id = p.day_plan_id
+                WHERE pr.user_id = :user_id
+                  AND pr.record_type IN ('AI_DRAFT', 'USER_FINAL')
+                ORDER BY pr.day_plan_id, pr.record_type
+            """)
+            result = await session.execute(stmt, {
+                "user_id": user_id,
+                "start_date": start_date,
+                "end_date": end_date,
+            })
+            rows = result.fetchall()
+            return [dict(r._mapping) for r in rows]
+
+    async def fetch_record_tasks(self, record_ids: list[int]) -> list[dict]:
+        """
+        여러 record_id의 FLEX record_tasks를 한번에 조회.
+        """
+        if not record_ids:
+            return []
+
+        async with AsyncSessionLocal() as session:
+            stmt = text("""
+                SELECT rt.record_id, rt.task_id, rt.title, rt.category,
+                       rt.focus_level, rt.is_urgent,
+                       rt.assignment_status, rt.assigned_by,
+                       rt.start_at, rt.end_at,
+                       rt.importance_score, rt.fatigue_cost,
+                       rt.estimated_time_range
+                FROM record_tasks rt
+                WHERE rt.record_id = ANY(:record_ids)
+                  AND rt.task_type = 'FLEX'
+                ORDER BY rt.task_id
+            """)
+            result = await session.execute(stmt, {"record_ids": record_ids})
+            rows = result.fetchall()
+            return [dict(r._mapping) for r in rows]
+
+    async def fetch_current_weights(self, user_id: int) -> dict | None:
+        """
+        user_weights 테이블에서 해당 유저의 최신 가중치 조회.
+        없으면 None 반환.
+        """
+        async with AsyncSessionLocal() as session:
+            stmt = text("""
+                SELECT weights, version
+                FROM user_weights
+                WHERE user_id = :user_id
+                ORDER BY version DESC
+                LIMIT 1
+            """)
+            result = await session.execute(stmt, {"user_id": user_id})
+            row = result.fetchone()
+            if row is None:
+                return None
+            mapping = dict(row._mapping)
+            weights = mapping["weights"]
+            if isinstance(weights, str):
+                weights = json.loads(weights)
+            return {"weights": weights, "version": mapping["version"]}
+
+    async def save_weights(
+        self, user_id: int, weights_dict: dict, new_version: int
+    ) -> None:
+        """
+        user_weights UPSERT: user_id 기준으로 INSERT 또는 UPDATE.
+        """
+        async with AsyncSessionLocal() as session:
+            try:
+                stmt = text("""
+                    INSERT INTO user_weights (user_id, weights, version, updated_at)
+                    VALUES (:user_id, :weights::jsonb, :version, NOW())
+                    ON CONFLICT (user_id) DO UPDATE SET
+                        weights = :weights::jsonb,
+                        version = :version,
+                        updated_at = NOW()
+                """)
+                await session.execute(stmt, {
+                    "user_id": user_id,
+                    "weights": json.dumps(weights_dict),
+                    "version": new_version,
+                })
+                await session.commit()
+            except Exception as e:
+                await session.rollback()
+                raise e
+
+    async def save_ingest_data(self, request) -> bool:
         """
         사용자 플래너 데이터 및 이력을 DB에 저장합니다.
         (planner_records -> record_tasks -> schedule_histories 순서)
         """
-        
+
         # 0. 데이터 전처리
         if not request.schedules:
             return True
             
         task_to_day_map = {t.task_id: t.day_plan_id for t in request.schedules}
         
-        schedules_by_day: dict[int, list[ScheduleIngestItem]] = {}
-        histories_by_day: dict[int, list[ScheduleHistoryIngestItem]] = {}
+        schedules_by_day: dict[int, list] = {}
+        histories_by_day: dict[int, list] = {}
         
         for item in request.schedules:
             if item.day_plan_id not in schedules_by_day:
@@ -176,7 +282,7 @@ class PersonalizationRepository:
                 print(f"[PersonalizationRepository] Error: {e}")
                 raise e
 
-    def _calculate_fill_rate(self, schedules: list[ScheduleIngestItem], day_end_time: str) -> float:
+    def _calculate_fill_rate(self, schedules: list, day_end_time: str) -> float:
         """
         가동률(Fill Rate) 계산
         - 분모: 00:00 ~ day_end_time 까지의 총 분
